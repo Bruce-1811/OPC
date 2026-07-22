@@ -1,0 +1,2133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OPC Hyper Concept Report</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #02030a;
+      --ink: #f7fbff;
+      --muted: #8fa0b8;
+      --cyan: #00f0ff;
+      --lime: #8cff4d;
+      --pink: #ff3df2;
+      --violet: #8a5cff;
+      --orange: #ffb03d;
+      --line: rgba(255, 255, 255, .16);
+      --glass: rgba(255, 255, 255, .07);
+      --deep: rgba(2, 3, 10, .78);
+    }
+
+    * { box-sizing: border-box; }
+    html {
+      scroll-behavior: smooth;
+      scroll-snap-type: y mandatory;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(0, 240, 255, .24), transparent 28rem),
+        radial-gradient(circle at 88% 12%, rgba(255, 61, 242, .22), transparent 30rem),
+        radial-gradient(circle at 55% 88%, rgba(140, 255, 77, .14), transparent 30rem),
+        linear-gradient(180deg, #02030a 0%, #070817 48%, #02030a 100%);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -4;
+      background-image:
+        linear-gradient(rgba(0, 240, 255, .08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 61, 242, .06) 1px, transparent 1px);
+      background-size: 44px 44px;
+      transform: perspective(700px) rotateX(58deg) translateY(-18%);
+      transform-origin: top;
+      opacity: .55;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -3;
+      pointer-events: none;
+      background:
+        linear-gradient(transparent 0 48%, rgba(0, 240, 255, .08) 50%, transparent 52%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 5px);
+      mix-blend-mode: screen;
+      opacity: .46;
+      animation: scan 5s linear infinite;
+    }
+
+    #matrix {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      width: 100%;
+      height: 100%;
+      opacity: .55;
+    }
+
+    .shell {
+      width: min(992px, calc(100% - 34px));
+      margin: 0 auto;
+    }
+
+    .hud {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      width: min(1180px, calc(100% - 28px));
+      padding: 10px;
+      border: 1px solid rgba(0, 240, 255, .26);
+      border-radius: 8px;
+      background: rgba(2, 3, 10, .66);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 0 44px rgba(0, 240, 255, .12), inset 0 0 30px rgba(255, 255, 255, .04);
+      transform: translateX(-50%);
+    }
+
+    .hud::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cyan), transparent, var(--pink), transparent, var(--lime));
+      opacity: .5;
+      z-index: -1;
+      filter: blur(10px);
+      animation: hueShift 7s linear infinite;
+    }
+
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      color: var(--cyan);
+      font-weight: 950;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .mark span {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(0, 240, 255, .5);
+      background: rgba(0, 240, 255, .12);
+      box-shadow: 0 0 26px rgba(0, 240, 255, .34);
+      clip-path: polygon(12% 0, 100% 0, 100% 74%, 82% 100%, 0 100%, 0 20%);
+    }
+
+    .nav {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .nav::-webkit-scrollbar { display: none; }
+
+    .nav a {
+      min-width: max-content;
+      padding: 9px 12px;
+      border: 1px solid transparent;
+      color: #a8b8cc;
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: .2s ease;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      border-color: rgba(0, 240, 255, .36);
+      background: rgba(0, 240, 255, .1);
+      color: #fff;
+      box-shadow: inset 0 0 20px rgba(0, 240, 255, .08);
+    }
+
+    .status {
+      min-width: max-content;
+      padding: 9px 12px;
+      border: 1px solid rgba(140, 255, 77, .34);
+      color: #d9ffc8;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      background: rgba(140, 255, 77, .1);
+    }
+
+    .page-arrows {
+      position: absolute;
+      right: clamp(-160px, -8vw, -104px);
+      bottom: clamp(18px, 3.6vw, 46px);
+      z-index: 5;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .page-arrow {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border: 1px solid rgba(0, 240, 255, .38);
+      border-radius: 999px;
+      color: #f7fbff;
+      font-size: 23px;
+      line-height: 1;
+      text-decoration: none;
+      background: rgba(0, 240, 255, .1);
+      box-shadow: 0 0 34px rgba(0, 240, 255, .16), inset 0 0 22px rgba(255, 255, 255, .05);
+      transition: .22s ease;
+    }
+
+    .page-arrow:hover {
+      transform: translateY(-2px);
+      border-color: rgba(140, 255, 77, .58);
+      color: var(--lime);
+      box-shadow: 0 0 42px rgba(140, 255, 77, .2), inset 0 0 24px rgba(255, 255, 255, .07);
+    }
+
+    section {
+      position: relative;
+      display: grid;
+      min-height: 100svh;
+      align-items: center;
+      padding: 94px 0 74px;
+      scroll-snap-align: start;
+    }
+
+    .hero {
+      display: grid;
+      min-height: 100svh;
+      align-items: center;
+      padding-top: 112px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(380px, .86fr);
+      gap: 48px;
+      align-items: center;
+    }
+
+    .system-line {
+      display: inline-flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 24px;
+      color: var(--lime);
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .system-line::before {
+      content: "";
+      width: 42px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--lime), transparent);
+      box-shadow: 0 0 18px rgba(140, 255, 77, .6);
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 780px;
+      font-size: clamp(64px, 10vw, 142px);
+      line-height: .82;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      text-shadow: 0 0 34px rgba(0, 240, 255, .26);
+    }
+
+    .glitch {
+      position: relative;
+      display: inline-block;
+      background: linear-gradient(90deg, #fff 0%, var(--cyan) 28%, var(--pink) 68%, #fff 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .glitch::before,
+    .glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      opacity: .72;
+      pointer-events: none;
+    }
+
+    .glitch::before {
+      color: var(--cyan);
+      transform: translate(3px, -2px);
+      clip-path: inset(0 0 55% 0);
+      animation: glitchA 2.4s infinite steps(2);
+    }
+
+    .glitch::after {
+      color: var(--pink);
+      transform: translate(-3px, 2px);
+      clip-path: inset(58% 0 0 0);
+      animation: glitchB 2.8s infinite steps(2);
+    }
+
+    .lead {
+      max-width: 650px;
+      margin-top: 28px;
+      color: #bdcbe0;
+      font-size: clamp(18px, 2vw, 24px);
+      line-height: 1.72;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 34px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border: 1px solid rgba(0, 240, 255, .32);
+      background: rgba(0, 240, 255, .08);
+      color: #eaffff;
+      font-weight: 950;
+      letter-spacing: .04em;
+      text-decoration: none;
+      clip-path: polygon(8% 0, 100% 0, 100% 72%, 90% 100%, 0 100%, 0 28%);
+      transition: .22s ease;
+    }
+
+    .btn.primary {
+      border-color: transparent;
+      background: linear-gradient(120deg, var(--cyan), var(--pink));
+      color: #02030a;
+      box-shadow: 0 18px 50px rgba(0, 240, 255, .24);
+    }
+
+    .btn:hover { transform: translateY(-3px); filter: brightness(1.15); }
+
+    .reactor {
+      position: relative;
+      min-height: 520px;
+      border: 1px solid rgba(255, 255, 255, .16);
+      background:
+        radial-gradient(circle at center, rgba(0, 240, 255, .2), transparent 30%),
+        linear-gradient(135deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .025));
+      box-shadow: 0 24px 90px rgba(0, 0, 0, .52), inset 0 0 80px rgba(0, 240, 255, .08);
+      overflow: hidden;
+      clip-path: polygon(0 0, 88% 0, 100% 10%, 100% 100%, 12% 100%, 0 90%);
+    }
+
+    .reactor::before {
+      content: "";
+      position: absolute;
+      inset: 28px;
+      border: 1px dashed rgba(0, 240, 255, .34);
+      animation: rotate 18s linear infinite;
+    }
+
+    .reactor::after {
+      content: "";
+      position: absolute;
+      inset: 84px;
+      border: 1px solid rgba(255, 61, 242, .28);
+      border-radius: 50%;
+      animation: rotate 11s linear infinite reverse;
+    }
+
+    .core {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 156px;
+      height: 156px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 38% 24%, #fff, var(--cyan) 28%, var(--violet) 62%, var(--pink));
+      color: #02030a;
+      font-size: 40px;
+      font-weight: 1000;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 70px rgba(0, 240, 255, .58), 0 0 110px rgba(255, 61, 242, .28);
+    }
+
+    .node {
+      position: absolute;
+      z-index: 3;
+      display: grid;
+      place-items: center;
+      min-width: 118px;
+      min-height: 50px;
+      padding: 10px 14px;
+      border: 1px solid rgba(0, 240, 255, .32);
+      background: rgba(2, 3, 10, .76);
+      color: #eaffff;
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 0 28px rgba(0, 240, 255, .12);
+      clip-path: polygon(10% 0, 100% 0, 100% 72%, 88% 100%, 0 100%, 0 24%);
+      animation: nodeFloat 4.8s ease-in-out infinite;
+    }
+
+    .node:nth-child(2) { top: 9%; left: 50%; transform: translateX(-50%); }
+    .node:nth-child(3) { top: 32%; right: 7%; animation-delay: -.7s; }
+    .node:nth-child(4) { bottom: 12%; right: 20%; animation-delay: -1.5s; }
+    .node:nth-child(5) { bottom: 12%; left: 18%; animation-delay: -2.2s; }
+    .node:nth-child(6) { top: 32%; left: 7%; animation-delay: -3s; }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(260px, .42fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 34px;
+    }
+
+    .kicker {
+      margin-bottom: 12px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 1000;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      max-width: 840px;
+      font-size: clamp(36px, 5vw, 76px);
+      line-height: .95;
+      letter-spacing: 0;
+      text-shadow: 0 0 34px rgba(255, 61, 242, .14);
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.75;
+    }
+
+    .signal-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .signal {
+      min-height: 150px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(255, 255, 255, .055);
+      clip-path: polygon(0 0, 88% 0, 100% 16%, 100% 100%, 0 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .signal::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, transparent, rgba(0, 240, 255, .16), transparent);
+      transform: translateX(-130%);
+      animation: sweep 4s ease-in-out infinite;
+    }
+
+    .signal span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .signal strong {
+      position: relative;
+      display: block;
+      margin-top: 14px;
+      font-size: clamp(20px, 2vw, 28px);
+      line-height: 1.15;
+    }
+
+    .research-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .research {
+      min-height: 360px;
+      padding: 24px;
+      border: 1px solid rgba(0, 240, 255, .2);
+      background: linear-gradient(145deg, rgba(0, 240, 255, .1), rgba(255, 255, 255, .04));
+      clip-path: polygon(0 0, 92% 0, 100% 12%, 100% 100%, 8% 100%, 0 88%);
+      transition: .24s ease;
+    }
+
+    .research:hover { transform: translateY(-5px); box-shadow: 0 24px 70px rgba(0, 240, 255, .14); }
+    .research h3 { font-size: 28px; margin-bottom: 14px; }
+    .research p { color: #b9c6d8; line-height: 1.75; }
+
+    .research-title {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .research-title img {
+      width: 42px;
+      height: 42px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .92);
+      box-shadow: 0 0 24px rgba(0, 240, 255, .12);
+    }
+
+    .research-title h3 {
+      margin: 0;
+    }
+
+    .research-visual {
+      display: block;
+      width: 100%;
+      height: 118px;
+      margin: 0 0 16px;
+      border-radius: 14px;
+      object-fit: cover;
+      object-position: center;
+      background: rgba(255, 255, 255, .08);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+    }
+
+    .research-visual,
+    .phone-scroll-content > img,
+    .phone-scroll.static-phone > img {
+      cursor: zoom-in;
+    }
+
+    .image-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 42px;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(0, 240, 255, .16), transparent 34%),
+        rgba(2, 4, 12, .88);
+      backdrop-filter: blur(18px);
+    }
+
+    .image-lightbox.open {
+      display: flex;
+    }
+
+    .image-lightbox-frame {
+      position: relative;
+      max-width: min(92vw, 1280px);
+      max-height: 86vh;
+      padding: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 240, 255, .28);
+      background: rgba(6, 12, 24, .9);
+      box-shadow: 0 28px 90px rgba(0, 0, 0, .5);
+    }
+
+    .image-lightbox img {
+      display: block;
+      width: auto;
+      max-width: min(86vw, 1180px);
+      max-height: 78vh;
+      border-radius: 14px;
+      background: #eef3ff;
+      object-fit: contain;
+    }
+
+    .image-lightbox.is-phone img {
+      width: auto;
+      max-width: min(86vw, 620px);
+      max-height: 82vh;
+      object-fit: contain;
+    }
+
+    .image-lightbox.is-phone .image-lightbox-frame {
+      width: fit-content;
+      height: fit-content;
+    }
+
+    .image-lightbox-caption {
+      margin-top: 10px;
+      color: rgba(226, 235, 255, .72);
+      font-size: 13px;
+      letter-spacing: .04em;
+      text-align: center;
+    }
+
+    .image-lightbox-close {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      width: 44px;
+      height: 44px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .1);
+      color: #fff;
+      font-size: 28px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    body.lightbox-open {
+      overflow: hidden;
+    }
+
+    .journey {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      counter-reset: step;
+    }
+
+    .journey-card {
+      position: relative;
+      min-height: 190px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(2, 3, 10, .6);
+      overflow: hidden;
+    }
+
+    .journey-card::before {
+      counter-increment: step;
+      content: "0" counter(step);
+      display: block;
+      margin-bottom: 38px;
+      color: rgba(0, 240, 255, .78);
+      font-size: 42px;
+      font-weight: 1000;
+    }
+
+    .journey-card::after {
+      content: "";
+      position: absolute;
+      top: 72px;
+      left: 18px;
+      right: 18px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--pink));
+      transform-origin: left;
+      animation: loadbar 2.8s ease-in-out infinite;
+    }
+
+    .journey-card h3 { font-size: 20px; margin-bottom: 10px; }
+    .journey-card p { color: var(--muted); line-height: 1.6; }
+
+    .module-system {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .tabs {
+      position: sticky;
+      top: 96px;
+      display: grid;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(2, 3, 10, .58);
+    }
+
+    .tab {
+      position: relative;
+      min-height: 54px;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(255, 255, 255, .045);
+      color: #9eadc1;
+      font: inherit;
+      font-weight: 1000;
+      letter-spacing: .08em;
+      text-align: left;
+      text-transform: uppercase;
+      cursor: pointer;
+      overflow: hidden;
+      transition: .22s ease;
+      clip-path: polygon(0 0, 88% 0, 100% 28%, 100% 100%, 0 100%);
+    }
+
+    .tab::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(0, 240, 255, .18), transparent);
+      transform: translateX(-120%);
+      transition: .22s ease;
+    }
+
+    .tab.active,
+    .tab:hover {
+      border-color: rgba(0, 240, 255, .44);
+      background: rgba(0, 240, 255, .1);
+      color: #fff;
+      box-shadow: 0 0 26px rgba(0, 240, 255, .12);
+      transform: translateX(4px);
+    }
+
+    .tab.active::before,
+    .tab:hover::before { transform: translateX(120%); }
+
+    .panel {
+      display: none;
+      min-height: 660px;
+      padding: 28px;
+      border: 1px solid rgba(255, 255, 255, .16);
+      background:
+        linear-gradient(135deg, rgba(0, 240, 255, .12), transparent 38%),
+        linear-gradient(315deg, rgba(255, 61, 242, .1), transparent 38%),
+        rgba(255, 255, 255, .045);
+      box-shadow: 0 26px 90px rgba(0, 0, 0, .44), inset 0 0 60px rgba(255, 255, 255, .04);
+      clip-path: polygon(0 0, 94% 0, 100% 7%, 100% 100%, 6% 100%, 0 93%);
+      overflow: hidden;
+    }
+
+    .panel.active {
+      display: block;
+      animation: panelBoot .42s ease both;
+    }
+
+    .panel-title {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 20px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, .14);
+    }
+
+    .panel-title h3 {
+      font-size: clamp(34px, 5vw, 66px);
+      line-height: .92;
+    }
+
+    .tag {
+      padding: 9px 12px;
+      border: 1px solid rgba(140, 255, 77, .36);
+      color: #d9ffc8;
+      font-size: 12px;
+      font-weight: 1000;
+      background: rgba(140, 255, 77, .1);
+      white-space: nowrap;
+    }
+
+    .brief {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(210px, .38fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .brief-card {
+      padding: 18px;
+      border: 1px solid rgba(0, 240, 255, .24);
+      background: rgba(0, 240, 255, .07);
+    }
+
+    .brief-card span,
+    .zone-label,
+    .flow-title {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 1000;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .brief-card strong {
+      display: block;
+      font-size: clamp(20px, 2.5vw, 34px);
+      line-height: 1.18;
+    }
+
+    .zone-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .zone-grid.triad {
+      position: relative;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .zone-grid.triad::before {
+      content: "";
+      position: absolute;
+      top: 40px;
+      left: 14%;
+      right: 14%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan), var(--pink), transparent);
+      animation: flowline 2.8s ease-in-out infinite;
+      opacity: .75;
+    }
+
+    .zone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(2, 3, 10, .54);
+      overflow: hidden;
+      transition: .24s ease;
+      clip-path: polygon(0 0, 91% 0, 100% 13%, 100% 100%, 0 100%);
+    }
+
+    .zone::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--cyan), var(--violet), var(--pink));
+    }
+
+    .zone::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, transparent, rgba(255, 255, 255, .18), transparent);
+      opacity: 0;
+      transform: translateX(-130%);
+      pointer-events: none;
+    }
+
+    .zone:hover {
+      transform: translateY(-5px) scale(1.01);
+      border-color: rgba(0, 240, 255, .42);
+      box-shadow: 0 28px 70px rgba(0, 240, 255, .14);
+    }
+
+    .zone:hover::after {
+      opacity: 1;
+      animation: sweep .75s ease both;
+    }
+
+    .zone strong {
+      position: relative;
+      display: block;
+      margin-bottom: 10px;
+      font-size: 22px;
+    }
+
+    .zone p {
+      position: relative;
+      color: #aebbd0;
+      font-size: 14px;
+      line-height: 1.62;
+    }
+
+    .ai-title {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0 10px;
+      color: #d9ffc8;
+      font-size: 13px;
+      font-weight: 1000;
+    }
+
+    .ai-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--lime);
+      box-shadow: 0 0 16px rgba(140, 255, 77, .78);
+    }
+
+    .ai-list {
+      position: relative;
+      display: grid;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .ai {
+      display: grid;
+      grid-template-columns: minmax(88px, .32fr) minmax(0, 1fr);
+      gap: 9px;
+      padding: 10px;
+      border: 1px solid rgba(0, 240, 255, .2);
+      background: rgba(0, 240, 255, .075);
+      transition: .2s ease;
+    }
+
+    .triad .ai { grid-template-columns: 1fr; }
+
+    .ai:hover {
+      background: rgba(0, 240, 255, .14);
+      border-color: rgba(140, 255, 77, .36);
+      transform: translateY(-2px);
+    }
+
+    .ai b {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #f2ffff;
+      font-size: 14px;
+    }
+
+    .ai b::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--cyan);
+      box-shadow: 0 0 12px rgba(0, 240, 255, .8);
+    }
+
+    .ai span {
+      color: #aab8ca;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .flow {
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, .13);
+      background: rgba(255, 255, 255, .045);
+    }
+
+    .flow-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+    }
+
+    .chip {
+      padding: 9px 12px;
+      border: 1px solid rgba(255, 255, 255, .15);
+      background: rgba(255, 255, 255, .07);
+      color: #e1e9f5;
+      font-size: 13px;
+      font-weight: 900;
+      animation: chip 2.8s ease-in-out infinite;
+      animation-delay: calc(var(--i, 0) * .14s);
+    }
+
+    .panel.active .brief,
+    .panel.active .zone,
+    .panel.active .flow {
+      animation: bootPiece .52s ease both;
+      animation-delay: var(--delay, 0ms);
+    }
+
+    .prototype-board {
+      display: grid;
+      gap: 34px;
+    }
+
+    .prototype-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(280px, .6fr);
+      gap: 28px;
+      align-items: center;
+      padding: 26px;
+      border: 1px solid rgba(0, 240, 255, .2);
+      background:
+        radial-gradient(circle at 20% 10%, rgba(0, 240, 255, .15), transparent 34%),
+        radial-gradient(circle at 82% 22%, rgba(255, 61, 242, .12), transparent 32%),
+        rgba(255, 255, 255, .045);
+      box-shadow: 0 28px 90px rgba(0, 0, 0, .38), inset 0 0 60px rgba(255, 255, 255, .035);
+      clip-path: polygon(0 0, 96% 0, 100% 12%, 100% 100%, 4% 100%, 0 88%);
+    }
+
+    .prototype-copy { padding: 12px 8px; }
+
+    .prototype-copy h3 {
+      margin-bottom: 16px;
+      font-size: clamp(34px, 5vw, 74px);
+      line-height: .95;
+    }
+
+    .prototype-copy p {
+      max-width: 560px;
+      color: #aebbd0;
+      font-size: 17px;
+      line-height: 1.8;
+    }
+
+    .prototype-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 18px;
+      align-items: start;
+    }
+
+    .prototype-grid.secondary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 760px;
+    }
+
+    .prototype-card {
+      position: relative;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(255, 255, 255, .045);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .36);
+      transition: .24s ease;
+    }
+
+    .prototype-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(0, 240, 255, .42);
+      box-shadow: 0 30px 80px rgba(0, 240, 255, .15);
+    }
+
+    .prototype-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 18px;
+      background: #eef3ff;
+    }
+
+    .prototype-card.wide { max-width: 420px; }
+
+    .prototype-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+      color: #dff7ff;
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .prototype-label span {
+      color: var(--lime);
+      font-size: 11px;
+    }
+
+    .prototype-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-top: 8px;
+    }
+
+    .prototype-pill {
+      padding: 8px 11px;
+      border: 1px solid rgba(0, 240, 255, .22);
+      color: #cceeff;
+      font-size: 12px;
+      font-weight: 850;
+      background: rgba(0, 240, 255, .08);
+    }
+
+    .prototype-panel-body {
+      display: grid;
+      grid-template-columns: minmax(280px, .56fr) minmax(0, 1fr);
+      gap: 30px;
+      align-items: center;
+      min-height: 540px;
+    }
+
+    .prototype-shot {
+      position: relative;
+      width: min(100%, 360px);
+      margin: 0 auto;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(255, 255, 255, .055);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .38);
+    }
+
+    .prototype-shot img {
+      display: block;
+      width: 100%;
+      max-height: 560px;
+      object-fit: contain;
+      border-radius: 22px;
+      background: #eef3ff;
+    }
+
+    .phone-scroll {
+      position: relative;
+      max-height: 560px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      border-radius: 22px;
+      background: #eef3ff;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 240, 255, .42) rgba(255, 255, 255, .08);
+    }
+
+    .phone-scroll.static-phone {
+      display: grid;
+      place-items: center;
+      overflow: visible;
+    }
+
+    .phone-scroll::-webkit-scrollbar { width: 6px; }
+    .phone-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, .08); }
+    .phone-scroll::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(0, 240, 255, .42);
+    }
+
+    .phone-scroll img {
+      width: 100%;
+      max-height: none !important;
+      border-radius: 0;
+    }
+
+    .phone-scroll-content {
+      position: relative;
+      width: 100%;
+    }
+
+    .phone-scroll.static-phone img {
+      width: auto;
+      max-width: 100%;
+      max-height: 560px !important;
+      object-fit: contain;
+      border-radius: 22px;
+    }
+
+    .phone-fixed-nav {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: var(--fixed-nav-top, 527px);
+      z-index: 4;
+      overflow: visible;
+      border-radius: 0;
+      box-shadow: none;
+      pointer-events: none;
+    }
+
+    .phone-fixed-nav img {
+      position: static;
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: none !important;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .hotspot {
+      position: absolute;
+      z-index: 3;
+      display: block;
+      padding: 0;
+      border: 0;
+      border-radius: 12px;
+      background: rgba(0, 240, 255, .001);
+      outline: 0 solid rgba(0, 240, 255, 0);
+      appearance: none;
+      transition: outline-width .16s ease, background .16s ease, box-shadow .16s ease;
+      cursor: pointer;
+    }
+
+    .hotspot:hover,
+    .hotspot:focus-visible {
+      background: rgba(255, 255, 255, .035);
+      outline: 0 solid transparent;
+      box-shadow: none;
+    }
+
+    .hotspot::after {
+      content: attr(aria-label);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 6px);
+      width: max-content;
+      max-width: 180px;
+      padding: 5px 8px;
+      border: 1px solid rgba(0, 240, 255, .34);
+      border-radius: 999px;
+      background: rgba(2, 3, 10, .84);
+      color: #dff7ff;
+      font-size: 11px;
+      font-weight: 850;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(4px);
+      transition: .16s ease;
+      white-space: nowrap;
+    }
+
+    .hotspot:hover::after,
+    .hotspot:focus-visible::after {
+      opacity: 0;
+      transform: translateX(-50%) translateY(4px);
+    }
+
+    .fixed-nav-hotspot {
+      position: absolute;
+      top: var(--fixed-nav-top, 527px);
+      z-index: 5;
+      height: 64px;
+      border-radius: 14px;
+    }
+
+    .interaction-note {
+      margin-top: 10px;
+      color: #8fa0b8;
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .prototype-detail {
+      display: grid;
+      gap: 18px;
+      align-content: center;
+    }
+
+    .prototype-detail p {
+      max-width: 620px;
+      color: #aebbd0;
+      font-size: 17px;
+      line-height: 1.8;
+    }
+
+    .prototype-points {
+      display: grid;
+      gap: 12px;
+      max-width: 620px;
+    }
+
+    .prototype-point {
+      padding: 14px 16px;
+      border: 1px solid rgba(0, 240, 255, .2);
+      background: rgba(0, 240, 255, .07);
+      color: #dbeafe;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .prototype-point b {
+      color: #f7fbff;
+      margin-right: 8px;
+    }
+
+    .loop-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .loop {
+      min-height: 150px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, .13);
+      background: rgba(255, 255, 255, .055);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .loop::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--cyan), var(--pink));
+      transform-origin: left;
+      animation: loadbar 2.6s ease-in-out infinite;
+    }
+
+    .loop strong { display: block; margin-bottom: 10px; font-size: 17px; }
+    .loop span { color: var(--muted); font-size: 13px; line-height: 1.55; }
+
+    .final {
+      display: grid;
+      min-height: 82svh;
+      place-items: center;
+      text-align: center;
+    }
+
+    .final-card {
+      width: min(920px, 100%);
+      padding: clamp(36px, 7vw, 86px);
+      border: 1px solid rgba(0, 240, 255, .28);
+      background:
+        radial-gradient(circle at 50% 0, rgba(0, 240, 255, .22), transparent 26rem),
+        rgba(255, 255, 255, .055);
+      clip-path: polygon(0 0, 94% 0, 100% 10%, 100% 100%, 6% 100%, 0 90%);
+      box-shadow: 0 34px 100px rgba(0, 0, 0, .46);
+    }
+
+    .final-card h2 { margin: 0 auto 24px; }
+    .final-card p { max-width: 680px; margin: 0 auto; color: #bdc8da; font-size: 19px; line-height: 1.85; }
+
+    /* Presentation scale: content width is reduced, so typography follows it down. */
+    h1 { font-size: clamp(46px, 7vw, 96px); }
+    h2 { font-size: clamp(26px, 3.5vw, 50px); }
+    .lead { font-size: clamp(16px, 1.65vw, 20px); }
+    .note { font-size: 14px; }
+    .kicker,
+    .system-line,
+    .brief-card span,
+    .zone-label,
+    .flow-title { font-size: 11px; }
+    .signal strong { font-size: clamp(17px, 1.7vw, 23px); }
+    .research h3 { font-size: 23px; }
+    .research p,
+    .journey-card p,
+    .zone p,
+    .prototype-detail p { font-size: 14px; }
+    .journey-card h3 { font-size: 17px; }
+    .panel-title h3 { font-size: clamp(24px, 3.4vw, 44px); }
+    .tag,
+    .tab,
+    .prototype-label,
+    .prototype-pill { font-size: 11px; }
+    .prototype-point { font-size: 13px; }
+    .loop strong { font-size: 14px; }
+    .loop span { font-size: 13px; }
+    .final-card p { font-size: 16px; }
+
+    #modules {
+      padding-top: 72px;
+      padding-bottom: 52px;
+    }
+
+    #modules .section-head {
+      margin-bottom: 20px;
+    }
+
+    #modules .module-system {
+      grid-template-columns: 210px minmax(0, 1fr);
+      gap: 14px;
+    }
+
+    #modules .tabs {
+      gap: 7px;
+      padding: 8px;
+      top: 78px;
+    }
+
+    #modules .tab {
+      min-height: 44px;
+      padding: 0 12px;
+    }
+
+    #modules .panel {
+      min-height: 540px;
+      padding: 20px;
+    }
+
+    #modules .panel-title {
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+    }
+
+    #modules .prototype-panel-body {
+      grid-template-columns: minmax(230px, .5fr) minmax(0, 1fr);
+      gap: 22px;
+      min-height: 420px;
+    }
+
+    #modules .prototype-shot {
+      width: min(100%, 300px);
+      padding: 10px;
+      --fixed-nav-top: 431px;
+    }
+
+    #modules .prototype-shot img {
+      max-height: 460px;
+      border-radius: 18px;
+    }
+
+    #modules .phone-scroll {
+      max-height: 460px;
+      border-radius: 18px;
+    }
+
+    #modules .phone-scroll img {
+      max-height: none;
+      border-radius: 0;
+    }
+
+    #modules .phone-scroll.static-phone img {
+      max-height: 460px !important;
+      border-radius: 18px;
+    }
+
+    #modules .prototype-detail {
+      gap: 12px;
+    }
+
+    #modules .prototype-points {
+      gap: 9px;
+    }
+
+    #modules .prototype-point {
+      padding: 11px 13px;
+      line-height: 1.52;
+    }
+
+    @media (pointer: fine) {
+      html.cursor-ready,
+      html.cursor-ready *,
+      body.cursor-ready,
+      body.cursor-ready *,
+      body.cursor-ready a,
+      body.cursor-ready button,
+      body.cursor-ready [role="button"] {
+        cursor: none !important;
+      }
+
+      .cursor-orbit,
+      .cursor-core,
+      .cursor-trail {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 80;
+        pointer-events: none;
+        opacity: 0;
+        will-change: transform, opacity;
+      }
+
+      .cursor-orbit {
+        display: none;
+      }
+
+      .cursor-core {
+        width: 10px;
+        height: 10px;
+        margin: -5px 0 0 -5px;
+        border-radius: 999px;
+        background: #fff;
+        box-shadow:
+          0 0 14px rgba(255, 255, 255, .95),
+          0 0 30px rgba(0, 240, 255, .86),
+          0 0 52px rgba(255, 61, 242, .44);
+      }
+
+      .cursor-trail {
+        width: 168px;
+        height: 58px;
+        margin: -29px 0 0 -84px;
+        border-radius: 999px;
+        background:
+          radial-gradient(ellipse at 28% 50%, rgba(0, 240, 255, .18), transparent 54%),
+          linear-gradient(90deg, transparent, rgba(255, 61, 242, .12), rgba(0, 240, 255, .08), transparent);
+        filter: blur(18px);
+        mix-blend-mode: screen;
+        transition: opacity .24s ease, width .24s ease;
+      }
+
+      body.cursor-visible .cursor-core,
+      body.cursor-visible .cursor-trail {
+        opacity: 1;
+      }
+
+      body.cursor-hover .cursor-core {
+        background: var(--lime);
+      }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: .72s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @keyframes scan {
+      from { background-position: 0 -100vh, 0 0; }
+      to { background-position: 0 100vh, 0 0; }
+    }
+
+    @keyframes hueShift { to { filter: hue-rotate(360deg); } }
+    @keyframes rotate { to { transform: rotate(360deg); } }
+    @keyframes nodeFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -12px; } }
+    @keyframes sweep { to { transform: translateX(130%); } }
+    @keyframes loadbar { 0%, 100% { transform: scaleX(.18); opacity: .45; } 50% { transform: scaleX(1); opacity: 1; } }
+    @keyframes flowline { 0%, 100% { transform: scaleX(.12); opacity: .2; } 50% { transform: scaleX(1); opacity: .86; } }
+    @keyframes panelBoot { from { opacity: 0; transform: translateY(12px) scale(.985); filter: blur(8px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+    @keyframes bootPiece { from { opacity: 0; transform: translateY(16px); filter: blur(8px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+    @keyframes chip { 0%, 100% { border-color: rgba(255, 255, 255, .15); box-shadow: none; } 45% { border-color: rgba(0, 240, 255, .48); box-shadow: 0 0 24px rgba(0, 240, 255, .14); } }
+    @keyframes glitchA { 0%, 90%, 100% { transform: translate(3px, -2px); } 92% { transform: translate(-5px, 1px); } 94% { transform: translate(6px, -1px); } }
+    @keyframes glitchB { 0%, 88%, 100% { transform: translate(-3px, 2px); } 90% { transform: translate(5px, -1px); } 93% { transform: translate(-6px, 1px); } }
+    @media (max-width: 1040px) {
+      .hero-grid,
+      .section-head,
+      .module-system,
+      .brief,
+      .prototype-hero,
+      .prototype-panel-body {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        position: static;
+        grid-template-columns: repeat(5, minmax(140px, 1fr));
+        overflow-x: auto;
+      }
+
+      .signal-grid,
+      .research-grid,
+      .journey,
+      .zone-grid,
+      .zone-grid.triad,
+      .loop-grid,
+      .prototype-grid,
+      .prototype-grid.secondary {
+        grid-template-columns: 1fr;
+      }
+
+      .zone-grid.triad::before { display: none; }
+      .reactor { min-height: 420px; }
+    }
+
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 24px, 992px); }
+      section { padding: 82px 0; }
+      .hud { top: 10px; grid-template-columns: auto minmax(0, 1fr); }
+      .status { display: none; }
+      .mark strong { display: none; }
+      .hero { padding-top: 110px; }
+      .reactor { min-height: 340px; }
+      .node { min-width: 92px; font-size: 11px; }
+      .panel { padding: 18px; clip-path: none; }
+      .panel-title { grid-template-columns: 1fr; }
+      .ai { grid-template-columns: 1fr; }
+      .signal-grid { gap: 10px; }
+      .prototype-hero { clip-path: none; padding: 18px; }
+      .prototype-copy p { font-size: 15px; }
+      .page-arrows { right: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="matrix" aria-hidden="true"></canvas>
+  <div class="image-lightbox" id="image-lightbox" hidden>
+    <button class="image-lightbox-close" type="button" aria-label="关闭预览">×</button>
+    <div class="image-lightbox-frame">
+      <img src="" alt="">
+      <div class="image-lightbox-caption"></div>
+    </div>
+  </div>
+  <div class="cursor-trail" aria-hidden="true"></div>
+  <div class="cursor-orbit" aria-hidden="true"></div>
+  <div class="cursor-core" aria-hidden="true"></div>
+
+  <header class="hud">
+    <div class="mark"><span>OPC</span><strong>Hyper Report</strong></div>
+    <nav class="nav" aria-label="页面导航">
+      <a href="#overview">Overview</a>
+      <a href="#signals">Problems</a>
+      <a href="#research">Research</a>
+      <a href="#journey">Journey</a>
+      <a href="#modules">Modules</a>
+      <a href="#loop">AI Loop</a>
+    </nav>
+    <div class="status">System Online</div>
+  </header>
+
+  <main>
+    <section class="hero shell" id="overview">
+      <div class="hero-grid">
+        <div class="reveal">
+          <div class="system-line">AI Native Project OS</div>
+          <h1><span class="glitch" data-text="OPC">OPC</span><br>One Person Company</h1>
+          <p class="lead">一个面向个人项目协作的 AI 系统：发现项目、生成需求、推进沟通、执行复盘，并把经验沉淀成个人能力资产。</p>
+          <div class="hero-actions">
+            <a class="btn primary" href="#modules">Enter Modules</a>
+            <a class="btn" href="#loop">View AI Loop</a>
+          </div>
+        </div>
+        <div class="reactor reveal" aria-label="OPC AI 系统视觉">
+          <div class="core">AI</div>
+          <div class="node">Discover</div>
+          <div class="node">Publish</div>
+          <div class="node">Message</div>
+          <div class="node">Project</div>
+          <div class="node">Profile</div>
+        </div>
+      </div>
+      <div class="page-arrows" aria-label="页面翻页">
+        <a class="page-arrow" href="#summary" aria-label="上一页">←</a>
+        <a class="page-arrow" href="#signals" aria-label="下一页">→</a>
+      </div>
+    </section>
+
+    <section class="shell" id="signals">
+      <div class="section-head reveal">
+        <div>
+          <div class="kicker">Core Frictions</div>
+          <h2>个人项目协作的阻力，是一整条链路。</h2>
+        </div>
+        <p class="note">OPC 不只解决“找项目”，而是把发现、发布、沟通、执行、沉淀连成一个 AI 驱动的闭环。</p>
+      </div>
+      <div class="signal-grid">
+        <div class="signal reveal"><span>01</span><strong>找项目难</strong></div>
+        <div class="signal reveal"><span>02</span><strong>找人难</strong></div>
+        <div class="signal reveal"><span>03</span><strong>沟通成本高</strong></div>
+        <div class="signal reveal"><span>04</span><strong>执行效率低</strong></div>
+        <div class="signal reveal"><span>05</span><strong>经验无法积累</strong></div>
+        <div class="signal reveal"><span>Goal</span><strong>AI 贯穿生命周期</strong></div>
+      </div>
+      <div class="page-arrows" aria-label="页面翻页">
+        <a class="page-arrow" href="#overview" aria-label="上一页">←</a>
+        <a class="page-arrow" href="#research" aria-label="下一页">→</a>
+      </div>
+    </section>
+
+    <section class="shell" id="research">
+      <div class="section-head reveal">
+        <div>
+          <div class="kicker">Research Inputs</div>
+          <h2>AI 不作为按钮存在，而是作为流程里的执行层。</h2>
+        </div>
+        <p class="note">参考 Dia、Granola、Genspark 的 AI Native 产品逻辑，OPC 把 AI 放进项目生命周期，而不是放在独立入口。</p>
+      </div>
+      <div class="research-grid">
+        <article class="research reveal"><div class="research-title"><img src="assets/logos/dia.jpeg" alt="Dia logo"><h3>Dia</h3></div><img class="research-visual" src="assets/research/dia-page.png" alt="Dia app screenshot"><p>AI 主动整理信息、生成待办、支持决策。启发：AI 可以成为贯穿工作流的助手。</p></article>
+        <article class="research reveal"><div class="research-title"><img src="assets/logos/granola.png" alt="Granola logo"><h3>Granola</h3></div><img class="research-visual" src="assets/research/granola-page.png" alt="Granola app screenshot"><p>AI 自动记录会议、总结内容并提取行动项。启发：重复信息整理是 AI 的高价值场景。</p></article>
+        <article class="research reveal"><div class="research-title"><img src="assets/logos/genspark.png" alt="Genspark logo"><h3>Genspark</h3></div><img class="research-visual" src="assets/research/genspark-page.png" alt="Genspark app screenshot"><p>用户描述目标，AI 处理过程。启发：用户关注目标，AI 承担执行过程。</p></article>
+      </div>
+      <div class="page-arrows" aria-label="页面翻页">
+        <a class="page-arrow" href="#signals" aria-label="上一页">←</a>
+        <a class="page-arrow" href="#journey" aria-label="下一页">→</a>
+      </div>
+    </section>
+
+    <section class="shell" id="journey">
+      <div class="section-head reveal">
+        <div>
+          <div class="kicker">User Journey</div>
+          <h2>从一个项目机会，到一次可复用的经验。</h2>
+        </div>
+        <p class="note">用户路径被设计成一个可被 AI 持续增强的协作链路。</p>
+      </div>
+      <div class="journey">
+        <div class="journey-card reveal"><h3>发现项目</h3><p>基于兴趣、能力与趋势获得推荐。</p></div>
+        <div class="journey-card reveal"><h3>发布需求</h3><p>AI 补全信息并生成项目草稿。</p></div>
+        <div class="journey-card reveal"><h3>沟通协作</h3><p>自动提取需求、待办与回复建议。</p></div>
+        <div class="journey-card reveal"><h3>完成项目</h3><p>统一目标、拆解任务、识别风险。</p></div>
+        <div class="journey-card reveal"><h3>经验沉淀</h3><p>生成复盘、成果总结和能力标签。</p></div>
+      </div>
+      <div class="page-arrows" aria-label="页面翻页">
+        <a class="page-arrow" href="#research" aria-label="上一页">←</a>
+        <a class="page-arrow" href="#modules" aria-label="下一页">→</a>
+      </div>
+    </section>
+
+    <section class="shell" id="modules">
+      <div class="section-head reveal">
+        <div>
+          <div class="kicker">Main System</div>
+          <h2>核心页面和功能。</h2>
+        </div>
+        <p class="note">左侧切换核心入口，右侧用原型图说明页面结构与关键功能。</p>
+      </div>
+
+      <div class="module-system reveal">
+        <div class="tabs" role="tablist" aria-label="核心页面">
+          <button class="tab active" type="button" data-panel="discover">发现</button>
+          <button class="tab" type="button" data-panel="project">项目</button>
+          <button class="tab" type="button" data-panel="publish">发布</button>
+          <button class="tab" type="button" data-panel="message">消息</button>
+          <button class="tab" type="button" data-panel="profile">我的</button>
+          <button class="tab" type="button" data-panel="detail">项目详情</button>
+          <button class="tab" type="button" data-panel="assistant">问培风</button>
+        </div>
+
+        <article class="panel active" id="panel-discover">
+          <div class="panel-title"><h3>发现页</h3><span class="tag">推荐 · 搜索 · 社区</span></div>
+          <div class="prototype-panel-body">
+            <div class="prototype-shot">
+              <div class="phone-scroll" data-phone="discover">
+                <div class="phone-scroll-content">
+                  <img src="assets/prototypes/discover.png" alt="发现页原型">
+                  <button class="hotspot" type="button" data-panel-link="detail" aria-label="点项目卡片进入详情" style="left:4%;top:18%;width:88%;height:14%;"></button>
+                  <button class="hotspot" type="button" data-panel-link="detail" aria-label="点热门项目进入详情" style="left:0%;top:32%;width:74%;height:8%;"></button>
+                </div>
+              </div>
+              <div class="phone-fixed-nav"><img src="assets/prototypes/nav-discover.png" alt=""></div>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="project" aria-label="底部导航：项目" style="left:27%;width:15%;"></button>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="publish" aria-label="底部导航：发布" style="left:43%;width:15%;"></button>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="message" aria-label="底部导航：消息" style="left:60%;width:15%;"></button>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="profile" aria-label="底部导航：我的" style="left:77%;width:15%;"></button>
+              <div class="interaction-note">长图可上下滚动；点击项目卡片或底部导航可切换页面。</div>
+            </div>
+            <div class="prototype-detail">
+              <p>发现页承担项目入口的第一判断：用户可以直接看到 AI 推荐、热门项目和社区动态。</p>
+              <div class="prototype-points">
+                <div class="prototype-point"><b>AI 推荐</b>根据用户能力和经历给出匹配项目与推荐理由。</div>
+                <div class="prototype-point"><b>搜索入口</b>支持项目、技能、关键词检索，并结合 AI 建议快速筛选。</div>
+                <div class="prototype-point"><b>项目流转</b>点击项目卡片进入项目详情，完成加入前判断。</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel" id="panel-project">
+          <div class="panel-title"><h3>项目页</h3><span class="tag">执行 · 待办 · 进度</span></div>
+          <div class="prototype-panel-body">
+            <div class="prototype-shot">
+              <div class="phone-scroll static-phone" data-phone="project">
+                <img src="assets/prototypes/project.png" alt="项目页原型">
+                <button class="hotspot" type="button" data-panel-link="detail" aria-label="点项目卡片进入详情" style="left:3%;top:32%;width:92%;height:20%;"></button>
+                <button class="hotspot" type="button" data-panel-link="discover" aria-label="底部导航：发现" style="left:8%;top:90%;width:15%;height:8%;"></button>
+                <button class="hotspot" type="button" data-panel-link="publish" aria-label="底部导航：发布" style="left:43%;top:90%;width:15%;height:8%;"></button>
+                <button class="hotspot" type="button" data-panel-link="message" aria-label="底部导航：消息" style="left:60%;top:90%;width:15%;height:8%;"></button>
+                <button class="hotspot" type="button" data-panel-link="profile" aria-label="底部导航：我的" style="left:77%;top:90%;width:15%;height:8%;"></button>
+              </div>
+              <div class="interaction-note">项目卡片进入详情；二级状态用于切换项目列表。</div>
+            </div>
+            <div class="prototype-detail">
+              <p>项目页负责管理正在参与的项目，让用户快速看到项目进度、当前任务和待处理事项。</p>
+              <div class="prototype-points">
+                <div class="prototype-point"><b>状态切换</b>进行中、待确认、已完成、已归档作为二级入口。</div>
+                <div class="prototype-point"><b>培风建议</b>突出临期、风险和下一步处理优先级。</div>
+                <div class="prototype-point"><b>待处理</b>把用户当前必须处理的事项前置，减少查找成本。</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel" id="panel-publish">
+          <div class="panel-title"><h3>发布页</h3><span class="tag">输入 · 整理 · 生成</span></div>
+          <div class="prototype-panel-body">
+            <div class="prototype-shot">
+              <div class="phone-scroll static-phone" data-phone="publish">
+                <img src="assets/prototypes/publish.png" alt="发布页原型">
+              </div>
+              <div class="interaction-note">输入想法后由 AI 实时整理，点击生成草稿进入后续发布内容。</div>
+            </div>
+            <div class="prototype-detail">
+              <p>发布页把“想法”转成可发布的项目草稿，AI 在输入过程中实时整理需求。</p>
+              <div class="prototype-points">
+                <div class="prototype-point"><b>自然输入</b>用户只需要描述项目想法，也可以用语音补充。</div>
+                <div class="prototype-point"><b>实时草稿</b>AI 自动整理方向、用户和待补充内容。</div>
+                <div class="prototype-point"><b>生成草稿</b>补充必要信息后生成更完整的项目发布内容。</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel" id="panel-message">
+          <div class="panel-title"><h3>消息页</h3><span class="tag">社区 · 会话 · 标记</span></div>
+          <div class="prototype-panel-body">
+            <div class="prototype-shot">
+              <div class="phone-scroll" data-phone="message">
+                <div class="phone-scroll-content">
+                  <img src="assets/prototypes/message.png" alt="消息页原型">
+                  <button class="hotspot" type="button" data-panel-link="assistant" aria-label="点问 AI" style="left:78%;top:67%;width:18%;height:8%;"></button>
+                </div>
+              </div>
+              <div class="phone-fixed-nav"><img src="assets/prototypes/nav-message.png" alt=""></div>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="discover" aria-label="底部导航：发现" style="left:8%;width:15%;"></button>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="project" aria-label="底部导航：项目" style="left:27%;width:15%;"></button>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="publish" aria-label="底部导航：发布" style="left:43%;width:15%;"></button>
+              <button class="hotspot fixed-nav-hotspot" type="button" data-panel-link="profile" aria-label="底部导航：我的" style="left:77%;width:15%;"></button>
+              <div class="interaction-note">消息长列表可滚动；悬浮问 AI 进入全局助手。</div>
+            </div>
+            <div class="prototype-detail">
+              <p>消息页强调社区感和协作消息，让用户先看到最近聊天和重要事项。</p>
+              <div class="prototype-points">
+                <div class="prototype-point"><b>顶部入口</b>待办事项、评论点赞、好友申请横向排列。</div>
+                <div class="prototype-point"><b>消息列表</b>最近会话持续向下滚动，不做过重卡片分区。</div>
+                <div class="prototype-point"><b>培风标记</b>只标出真正重要的待确认内容，避免信息噪音。</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel" id="panel-profile">
+          <div class="panel-title"><h3>我的页</h3><span class="tag">资料 · 资产 · 设置</span></div>
+          <div class="prototype-panel-body">
+            <div class="prototype-shot">
+              <div class="phone-scroll static-phone" data-phone="profile">
+                <img src="assets/prototypes/profile.png" alt="我的页原型">
+                <button class="hotspot" type="button" data-panel-link="assistant" aria-label="点问 AI" style="left:79%;top:81%;width:16%;height:8%;"></button>
+                <button class="hotspot" type="button" data-panel-link="discover" aria-label="底部导航：发现" style="left:8%;top:90%;width:15%;height:8%;"></button>
+                <button class="hotspot" type="button" data-panel-link="project" aria-label="底部导航：项目" style="left:27%;top:90%;width:15%;height:8%;"></button>
+                <button class="hotspot" type="button" data-panel-link="publish" aria-label="底部导航：发布" style="left:43%;top:90%;width:15%;height:8%;"></button>
+                <button class="hotspot" type="button" data-panel-link="message" aria-label="底部导航：消息" style="left:60%;top:90%;width:15%;height:8%;"></button>
+              </div>
+              <div class="interaction-note">常用资产和二级菜单集中在我的页；问 AI 为全局入口。</div>
+            </div>
+            <div class="prototype-detail">
+              <p>我的页把个人资料、项目资产和二级入口收束在一起，减少首页信息负担。</p>
+              <div class="prototype-points">
+                <div class="prototype-point"><b>个人资料</b>展示身份、能力标签和参与数据。</div>
+                <div class="prototype-point"><b>横向资产</b>收藏项目、浏览记录、草稿箱作为常用入口。</div>
+                <div class="prototype-point"><b>二级菜单</b>已发布、项目申请、知识库、设置进入更具体内容。</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel" id="panel-detail">
+          <div class="panel-title"><h3>项目详情页</h3><span class="tag">理解 · 判断 · 申请</span></div>
+          <div class="prototype-panel-body">
+            <div class="prototype-shot">
+              <div class="phone-scroll static-phone" data-phone="detail">
+                <img src="assets/prototypes/detail.png" alt="项目详情页原型">
+              </div>
+              <div class="interaction-note">从发现页或项目页进入，用于加入前快速判断。</div>
+            </div>
+            <div class="prototype-detail">
+              <p>项目详情页是加入前的判断页面，重点是让用户最快理解项目做什么、需要什么、是否值得加入。</p>
+              <div class="prototype-points">
+                <div class="prototype-point"><b>项目信息</b>封面、简介、周期、人数、远程协作和截止时间集中展示。</div>
+                <div class="prototype-point"><b>项目安排</b>阶段任务、文件资料、交付成果和反馈统一放在同一区域。</div>
+                <div class="prototype-point"><b>转化动作</b>底部保留联系发布人和申请加入，降低决策后的操作成本。</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel" id="panel-assistant">
+          <div class="panel-title"><h3>问培风</h3><span class="tag">全局 AI 助手</span></div>
+          <div class="prototype-panel-body">
+            <div class="prototype-shot">
+              <div class="phone-scroll static-phone" data-phone="assistant">
+                <img src="assets/prototypes/assistant.png" alt="问培风 AI 助手页原型">
+              </div>
+              <div class="interaction-note">主要页面的悬浮入口都可以进入问 AI。</div>
+            </div>
+            <div class="prototype-detail">
+              <p>问培风是跨页面的全局助手，帮助用户处理项目、发布、申请和消息里的高频任务。</p>
+              <div class="prototype-points">
+                <div class="prototype-point"><b>快捷任务</b>今天要处理什么、找项目、优化表达、总结未读消息。</div>
+                <div class="prototype-point"><b>行动建议</b>根据上下文给出待处理事项和优先级。</div>
+                <div class="prototype-point"><b>全局入口</b>在主要页面作为悬浮入口出现，不局限在消息页面。</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="page-arrows" aria-label="页面翻页">
+        <a class="page-arrow" href="#journey" aria-label="上一页">←</a>
+        <a class="page-arrow" href="#loop" aria-label="下一页">→</a>
+      </div>
+    </section>
+
+    <section class="shell" id="loop">
+      <div class="section-head reveal">
+        <div>
+          <div class="kicker">AI Feedback Loop</div>
+          <h2>每一次协作，都会让下一次匹配更准确。</h2>
+        </div>
+        <p class="note">OPC 的 AI 价值不是单次生成，而是持续把项目行为转化为个人能力资产。</p>
+      </div>
+      <div class="loop-grid">
+        <div class="loop reveal"><strong>项目发现</strong><span>识别适合用户的机会。</span></div>
+        <div class="loop reveal"><strong>AI 匹配</strong><span>分析兴趣、能力与风险。</span></div>
+        <div class="loop reveal"><strong>智能发布</strong><span>从想法生成项目草稿。</span></div>
+        <div class="loop reveal"><strong>协作推进</strong><span>从聊天提取需求和待办。</span></div>
+        <div class="loop reveal"><strong>成果复盘</strong><span>总结项目成果与经验。</span></div>
+        <div class="loop reveal"><strong>能力画像</strong><span>更新技能标签与能力分析。</span></div>
+        <div class="loop reveal"><strong>精准推荐</strong><span>反哺下一次推荐。</span></div>
+      </div>
+      <div class="page-arrows" aria-label="页面翻页">
+        <a class="page-arrow" href="#modules" aria-label="上一页">←</a>
+        <a class="page-arrow" href="#summary" aria-label="下一页">→</a>
+      </div>
+    </section>
+
+    <section class="final shell" id="summary">
+      <div class="final-card reveal">
+        <div class="kicker">Concept Summary</div>
+        <h2>让个人也能像一个小型公司一样启动、协作、复盘和成长。</h2>
+        <p>OPC 把 AI 放进项目生命周期：发现机会、补全需求、降低沟通成本、推动执行，并把经验变成可复用的个人资产。</p>
+      </div>
+      <div class="page-arrows" aria-label="页面翻页">
+        <a class="page-arrow" href="#loop" aria-label="上一页">←</a>
+        <a class="page-arrow" href="#overview" aria-label="下一页">→</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#matrix");
+    const ctx = canvas.getContext("2d");
+    let width = 0;
+    let height = 0;
+    let shards = [];
+    let pointer = { x: -9999, y: -9999 };
+
+    function resize() {
+      const ratio = window.devicePixelRatio || 1;
+      width = canvas.clientWidth;
+      height = canvas.clientHeight;
+      canvas.width = width * ratio;
+      canvas.height = height * ratio;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const count = Math.min(120, Math.floor(width * height / 10500));
+      shards = Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - .5) * .45,
+        vy: (Math.random() - .5) * .45,
+        size: Math.random() * 2 + .8,
+        hue: Math.random() > .5 ? "0, 240, 255" : "255, 61, 242"
+      }));
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      for (const s of shards) {
+        s.x += s.vx;
+        s.y += s.vy;
+        if (s.x < 0 || s.x > width) s.vx *= -1;
+        if (s.y < 0 || s.y > height) s.vy *= -1;
+        const d = Math.hypot(s.x - pointer.x, s.y - pointer.y);
+        if (d < 140) {
+          s.x += (s.x - pointer.x) / Math.max(d, 1) * .55;
+          s.y += (s.y - pointer.y) / Math.max(d, 1) * .55;
+        }
+        ctx.fillStyle = `rgba(${s.hue}, .72)`;
+        ctx.fillRect(s.x, s.y, s.size * 3, s.size);
+      }
+      for (let i = 0; i < shards.length; i++) {
+        for (let j = i + 1; j < shards.length; j++) {
+          const a = shards[i];
+          const b = shards[j];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < 118) {
+            ctx.strokeStyle = `rgba(0, 240, 255, ${(.11 * (1 - d / 118)).toFixed(3)})`;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("pointermove", event => pointer = { x: event.clientX, y: event.clientY });
+    window.addEventListener("pointerleave", () => pointer = { x: -9999, y: -9999 });
+    resize();
+    draw();
+
+    const cursorOrbit = document.querySelector(".cursor-orbit");
+    const cursorCore = document.querySelector(".cursor-core");
+    const cursorTrail = document.querySelector(".cursor-trail");
+    const finePointer = window.matchMedia("(pointer: fine)").matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const cursorState = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+      orbitX: window.innerWidth / 2,
+      orbitY: window.innerHeight / 2,
+      trailX: window.innerWidth / 2,
+      trailY: window.innerHeight / 2
+    };
+
+    if (finePointer) {
+      document.body.classList.add("cursor-ready");
+      document.documentElement.classList.add("cursor-ready");
+
+      window.addEventListener("pointermove", event => {
+        cursorState.x = event.clientX;
+        cursorState.y = event.clientY;
+        document.body.classList.add("cursor-visible");
+        const target = event.target.closest("a, button, .tab, .chip, .zone, .brief-card, .journey-card, .signal, .loop, .research-card");
+        document.body.classList.toggle("cursor-hover", Boolean(target));
+      });
+
+      window.addEventListener("pointerleave", () => {
+        document.body.classList.remove("cursor-visible", "cursor-hover");
+      });
+
+      document.addEventListener("pointerover", event => {
+        const target = event.target.closest("a, button, .tab, .chip, .zone, .brief-card, .journey-card, .signal, .loop, .research-card");
+        document.body.classList.toggle("cursor-hover", Boolean(target));
+      });
+
+      function moveCursor() {
+        cursorState.orbitX += (cursorState.x - cursorState.orbitX) * .2;
+        cursorState.orbitY += (cursorState.y - cursorState.orbitY) * .2;
+        cursorState.trailX += (cursorState.x - cursorState.trailX) * .075;
+        cursorState.trailY += (cursorState.y - cursorState.trailY) * .075;
+        const hoverScale = document.body.classList.contains("cursor-hover") ? 1.48 : 1;
+
+        cursorCore.style.transform = `translate3d(${cursorState.x}px, ${cursorState.y}px, 0)`;
+        cursorOrbit.style.transform = `translate3d(${cursorState.orbitX}px, ${cursorState.orbitY}px, 0) scale(${hoverScale})`;
+        cursorTrail.style.transform = `translate3d(${cursorState.trailX}px, ${cursorState.trailY}px, 0)`;
+        requestAnimationFrame(moveCursor);
+      }
+
+      moveCursor();
+    }
+
+    const revealObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("visible");
+          revealObserver.unobserve(entry.target);
+        }
+      }
+    }, { threshold: .15 });
+    document.querySelectorAll(".reveal").forEach(item => revealObserver.observe(item));
+
+    const links = [...document.querySelectorAll(".nav a")];
+    const sections = links.map(link => document.querySelector(link.getAttribute("href")));
+    const navObserver = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      links.forEach(link => link.classList.toggle("active", link.getAttribute("href") === `#${visible.target.id}`));
+    }, { rootMargin: "-35% 0px -50% 0px", threshold: [.1, .25, .5] });
+    sections.filter(Boolean).forEach(section => navObserver.observe(section));
+
+    const tabs = document.querySelectorAll(".tab");
+    const panels = document.querySelectorAll(".panel");
+
+    function prime(panel) {
+      const pieces = [panel.querySelector(".brief"), ...panel.querySelectorAll(".zone"), panel.querySelector(".flow")].filter(Boolean);
+      pieces.forEach((piece, index) => piece.style.setProperty("--delay", `${index * 80}ms`));
+      panel.querySelectorAll(".chip").forEach((chip, index) => chip.style.setProperty("--i", index));
+    }
+    panels.forEach(prime);
+
+    function activatePrototypePanel(panelName) {
+      const target = `panel-${panelName}`;
+      const targetPanel = document.getElementById(target);
+      if (!targetPanel) return;
+
+      tabs.forEach(item => item.classList.toggle("active", item.dataset.panel === panelName));
+      panels.forEach(panel => {
+        const active = panel.id === target;
+        panel.classList.toggle("active", active);
+        if (active) {
+          prime(panel);
+          panel.querySelectorAll(".brief, .zone, .flow").forEach(piece => {
+            piece.style.animation = "none";
+            piece.offsetHeight;
+            piece.style.animation = "";
+          });
+          panel.querySelector(".phone-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      });
+    }
+
+    tabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        activatePrototypePanel(tab.dataset.panel);
+      });
+    });
+
+    document.querySelectorAll("[data-panel-link]").forEach(hotspot => {
+      hotspot.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        activatePrototypePanel(hotspot.dataset.panelLink);
+      });
+    });
+
+    const lightbox = document.getElementById("image-lightbox");
+    const lightboxImage = lightbox?.querySelector("img");
+    const lightboxCaption = lightbox?.querySelector(".image-lightbox-caption");
+    const lightboxClose = lightbox?.querySelector(".image-lightbox-close");
+    const previewImages = document.querySelectorAll(".research-visual, .phone-scroll-content > img, .phone-scroll.static-phone > img");
+
+    function openImageLightbox(image) {
+      if (!lightbox || !lightboxImage || !lightboxCaption) return;
+      const isPhonePrototype = Boolean(image.closest(".prototype-shot"));
+      lightboxImage.src = image.currentSrc || image.src;
+      lightboxImage.alt = image.alt || "图片预览";
+      lightboxCaption.textContent = image.alt || "图片预览";
+      lightbox.classList.toggle("is-phone", isPhonePrototype);
+      lightbox.hidden = false;
+      document.body.classList.add("lightbox-open");
+      requestAnimationFrame(() => {
+        lightbox.classList.add("open");
+        lightboxClose?.focus({ preventScroll: true });
+      });
+    }
+
+    function closeImageLightbox() {
+      if (!lightbox || !lightboxImage) return;
+      lightbox.classList.remove("open", "is-phone");
+      document.body.classList.remove("lightbox-open");
+      lightbox.hidden = true;
+      lightboxImage.src = "";
+    }
+
+    previewImages.forEach(image => {
+      image.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openImageLightbox(image);
+      });
+    });
+
+    lightbox?.addEventListener("click", event => {
+      if (event.target === lightbox) closeImageLightbox();
+    });
+
+    lightboxClose?.addEventListener("click", closeImageLightbox);
+
+    window.addEventListener("keydown", event => {
+      if (event.key === "Escape" && lightbox?.classList.contains("open")) {
+        closeImageLightbox();
+      }
+    });
+  </script>
+</body>
+</html>

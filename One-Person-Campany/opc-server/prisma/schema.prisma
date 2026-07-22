@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        BigInt   @id @default(autoincrement())
+  phone     String   @unique @db.VarChar(20)
+  password  String   @db.VarChar(255)
+  nickname  String   @db.VarChar(64)
+  avatar    String?  @db.VarChar(512)
+  bio       String?  @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  skills              UserSkill[]
+  ownedProjects       Project[]            @relation("ProjectOwner")
+  projectMembers      ProjectMember[]
+  applications        ProjectApplication[]
+  assignedTasks       ProjectTask[]        @relation("TaskAssignee")
+  favorites           UserFavorite[]
+  conversationUsers   ConversationUser[]
+  sentMessages        Message[]
+  aiChats             AiChat[]
+
+  @@map("users")
+}
+
+model UserSkill {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  skillName String   @map("skill_name") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_skills")
+}
+
+model Project {
+  id            BigInt    @id @default(autoincrement())
+  ownerId       BigInt    @map("owner_id")
+  title         String    @db.VarChar(128)
+  description   String?   @db.Text
+  cover         String?   @db.VarChar(512)
+  tags          String?   @db.VarChar(255)
+  status        String    @default("recruiting") @db.VarChar(20)
+  isDraft       Int       @default(1) @map("is_draft") @db.TinyInt
+  workMode      String?   @default("remote") @map("work_mode") @db.VarChar(20)
+  durationWeeks Int?      @map("duration_weeks")
+  deadline      DateTime? @db.Date
+  teamMax       Int       @default(5) @map("team_max")
+  teamCurrent   Int       @default(1) @map("team_current")
+  progress      Int       @default(0) @db.TinyInt
+  rolesJson     String?   @map("roles_json") @db.Text
+  phasesJson    String?   @map("phases_json") @db.Text
+  aiSummary     String?   @map("ai_summary") @db.Text
+  rawInput      String?   @map("raw_input") @db.Text
+  viewCount     Int       @default(0) @map("view_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  owner         User                 @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members       ProjectMember[]
+  applications  ProjectApplication[]
+  tasks         ProjectTask[]
+  conversations Conversation[]
+  favorites     UserFavorite[]
+
+  @@index([ownerId])
+  @@index([status, isDraft])
+  @@index([createdAt])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        BigInt   @id @default(autoincrement())
+  projectId BigInt   @map("project_id")
+  userId    BigInt   @map("user_id")
+  roleName  String   @default("成员") @map("role_name") @db.VarChar(64)
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model ProjectApplication {
+  id          BigInt   @id @default(autoincrement())
+  projectId   BigInt   @map("project_id")
+  userId      BigInt   @map("user_id")
+  roleName    String?  @map("role_name") @db.VarChar(64)
+  message     String?  @db.Text
+  status      String   @default("pending") @db.VarChar(20)
+  matchScore  Int?     @map("match_score")
+  matchReason String?  @map("match_reason") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([userId])
+  @@map("project_applications")
+}
+
+model ProjectTask {
+  id         BigInt    @id @default(autoincrement())
+  projectId  BigInt    @map("project_id")
+  title      String    @db.VarChar(255)
+  assigneeId BigInt?   @map("assignee_id")
+  status     String    @default("todo") @db.VarChar(20)
+  priority   String    @default("medium") @db.VarChar(10)
+  dueDate    DateTime? @map("due_date") @db.Date
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([assigneeId, status])
+  @@map("project_tasks")
+}
+
+model Conversation {
+  id            BigInt    @id @default(autoincrement())
+  type          String    @default("project") @db.VarChar(20)
+  projectId     BigInt?   @map("project_id")
+  name          String?   @db.VarChar(128)
+  lastMessage   String?   @map("last_message") @db.VarChar(255)
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  project  Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  users    ConversationUser[]
+  messages Message[]
+
+  @@index([projectId])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model ConversationUser {
+  id             BigInt @id @default(autoincrement())
+  conversationId BigInt @map("conversation_id")
+  userId         BigInt @map("user_id")
+  unreadCount    Int    @default(0) @map("unread_count")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_users")
+}
+
+model Message {
+  id             BigInt   @id @default(autoincrement())
+  conversationId BigInt   @map("conversation_id")
+  senderId       BigInt   @map("sender_id")
+  content        String   @db.Text
+  aiTag          String?  @map("ai_tag") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@map("messages")
+}
+
+model UserFavorite {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  projectId BigInt   @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@map("user_favorites")
+}
+
+model AiChat {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  role      String   @db.VarChar(10)
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("ai_chats")
+}
