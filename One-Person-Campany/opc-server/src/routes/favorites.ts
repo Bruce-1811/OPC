@@ -1,18 +1,13 @@
 import { Router } from 'express';
-// 按照您的目录结构，从 lib 引入 prisma 实例
 import { prisma } from '../lib/prisma.js';
-// 假设您的 auth 中间件在这里（根据您的实际文件名调整）
-// import { requireAuth } from '../middleware/auth'; 
+import { getAuthUserId, requireAuth } from '../middleware/auth.js';
+import { ok, fail } from '../utils/response.js';
 
-const router = Router();
+export const favoritesRouter = Router();
 
-// 建议：在这里全局应用鉴权中间件
-// router.use(requireAuth);
-
-// POST /api/favorites/:projectId - 收藏项目
-router.post('/:projectId', async (req, res) => {
+favoritesRouter.post('/:projectId', requireAuth, async (req, res) => {
   try {
-    const userId = BigInt((req as any).user.id);
+    const userId = getAuthUserId(req);
     const projectId = BigInt(req.params.projectId);
 
     const existing = await prisma.userFavorite.findUnique({
@@ -20,40 +15,39 @@ router.post('/:projectId', async (req, res) => {
     });
 
     if (existing) {
-      return res.json({ code: 40001, message: '您已经收藏过该项目了', data: null });
+      res.status(400).json(fail(40001, '您已经收藏过该项目了'));
+      return;
     }
 
     const favorite = await prisma.userFavorite.create({
       data: { userId, projectId }
     });
 
-    res.json({ code: 0, message: '收藏成功', data: { id: favorite.id.toString() } });
+    res.json(ok({ id: Number(favorite.id) }));
   } catch (error) {
     console.error(error);
-    res.json({ code: 50001, message: '服务器错误', data: null });
+    res.status(500).json(fail(50001, '服务器错误'));
   }
 });
 
-// DELETE /api/favorites/:projectId - 取消收藏
-router.delete('/:projectId', async (req, res) => {
+favoritesRouter.delete('/:projectId', requireAuth, async (req, res) => {
   try {
-    const userId = BigInt((req as any).user.id);
+    const userId = getAuthUserId(req);
     const projectId = BigInt(req.params.projectId);
 
     await prisma.userFavorite.delete({
       where: { userId_projectId: { userId, projectId } }
     });
 
-    res.json({ code: 0, message: '已取消收藏', data: null });
+    res.json(ok(null));
   } catch (error) {
-    res.json({ code: 0, message: '已取消收藏', data: null });
+    res.json(ok(null));
   }
 });
 
-// GET /api/favorites - 获取我的收藏列表
-router.get('/', async (req, res) => {
+favoritesRouter.get('/', requireAuth, async (req, res) => {
   try {
-    const userId = BigInt((req as any).user.id);
+    const userId = getAuthUserId(req);
     
     const favorites = await prisma.userFavorite.findMany({
       where: { userId },
@@ -61,20 +55,17 @@ router.get('/', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    // 转换 BigInt 避免 JSON 序列化报错
     const list = favorites.map(f => ({
       ...f,
-      id: f.id.toString(),
-      userId: f.userId.toString(),
-      projectId: f.projectId.toString(),
-      project: { ...f.project, id: f.project.id.toString(), ownerId: f.project.ownerId.toString() }
+      id: Number(f.id),
+      userId: Number(f.userId),
+      projectId: Number(f.projectId),
+      project: { ...f.project, id: Number(f.project.id), ownerId: Number(f.project.ownerId) }
     }));
 
-    res.json({ code: 0, message: 'ok', data: { list } });
+    res.json(ok({ list }));
   } catch (error) {
     console.error(error);
-    res.json({ code: 50001, message: '服务器错误', data: null });
+    res.status(500).json(fail(50001, '服务器错误'));
   }
 });
-
-export default router;

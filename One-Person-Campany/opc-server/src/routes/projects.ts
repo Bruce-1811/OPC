@@ -130,7 +130,7 @@ projectsRouter.get('/', optionalAuth, async (req, res) => {
     const sort = req.query.sort === 'hot' ? 'hot' : 'latest';
 
     const where = buildProjectListWhere({ keyword, tag });
-    const orderBy: Prisma.ProjectOrderByWithRelationInput =
+    const orderBy: any = 
       sort === 'hot'
         ? { viewCount: 'desc' }
         : { createdAt: 'desc' };
@@ -256,6 +256,42 @@ projectsRouter.put('/:projectId', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/projects/mine - 必须放在 /:projectId 前面
+projectsRouter.get('/mine', requireAuth, async (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const { status } = req.query; 
+
+    const whereClause: any = {
+      members: { some: { userId } }
+    };
+    if (typeof status === 'string') {
+      whereClause.status = status;
+    }
+
+    const projects = await prisma.project.findMany({
+      where: whereClause,
+      include: {
+        tasks: { where: { status: 'todo' }, select: { title: true }, take: 1 },
+        members: { include: { user: { select: { avatar: true } } } }
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    const list = projects.map(p => ({
+      ...p,
+      id: Number(p.id),
+      ownerId: Number(p.ownerId),
+      members: p.members.map(m => ({ ...m, id: Number(m.id), userId: Number(m.userId) }))
+    }));
+
+    res.json(ok({ list }));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json(fail(50001, '服务器错误'));
+  }
+});
+
 projectsRouter.get('/:projectId', optionalAuth, async (req, res) => {
   try {
     const idParam = req.params.projectId;
@@ -283,6 +319,47 @@ projectsRouter.get('/:projectId', optionalAuth, async (req, res) => {
     res.json(ok(detail));
   } catch (err) {
     console.error(err);
+    res.status(500).json(fail(50001, '服务器错误'));
+  }
+});
+
+projectsRouter.patch('/:projectId', requireAuth, async (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const idParam = req.params.projectId;
+    const projectId = parseProjectId(
+      Array.isArray(idParam) ? idParam[0] : idParam,
+    );
+    
+    if (!projectId) {
+      res.status(400).json(fail(40001, '无效的项目 ID'));
+      return;
+    }
+
+    const { progress, status } = req.body;
+
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) {
+      res.status(404).json(fail(40401, '项目不存在'));
+      return;
+    }
+    
+    if (project.ownerId !== userId) {
+      res.status(403).json(fail(40301, '无权限修改项目信息'));
+      return;
+    }
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        ...(progress !== undefined && { progress }),
+        ...(status && { status })
+      }
+    });
+
+    res.json(ok(null));
+  } catch (error) {
+    console.error(error);
     res.status(500).json(fail(50001, '服务器错误'));
   }
 });

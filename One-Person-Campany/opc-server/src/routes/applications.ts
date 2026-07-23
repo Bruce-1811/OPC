@@ -1,60 +1,74 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { getAuthUserId, requireAuth } from '../middleware/auth.js';
+import { ok, fail } from '../utils/response.js';
 
-const router = Router();
+export const applicationsRouter = Router();
 
-// POST /api/projects/:projectId/applications - 提交加入申请
-// 注意：这个路由带了 /projects/ 前缀，所以挂载时要在 index.ts 里特殊处理，或者把这块逻辑写进 projects.ts 里。
-// 为了模块清晰，我们在这里定义，待会挂载到根路径。
-router.post('/projects/:projectId/applications', async (req, res) => {
+applicationsRouter.post('/projects/:projectId/applications', requireAuth, async (req, res) => {
   try {
-    const userId = BigInt((req as any).user.id);
+    const userId = getAuthUserId(req);
     const projectId = BigInt(req.params.projectId);
     const { roleName, message } = req.body;
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (!project) return res.json({ code: 40401, message: '项目不存在', data: null });
+    if (!project) {
+      res.status(404).json(fail(40401, '项目不存在'));
+      return;
+    }
 
     const existingApp = await prisma.projectApplication.findFirst({
       where: { userId, projectId }
     });
-    if (existingApp) return res.json({ code: 40001, message: '您已经申请过该项目', data: null });
+    if (existingApp) {
+      res.status(400).json(fail(40001, '您已经申请过该项目'));
+      return;
+    }
 
     const application = await prisma.projectApplication.create({
       data: { userId, projectId, roleName, message, status: 'pending' }
     });
 
-    res.json({ code: 0, message: '申请提交成功', data: { applicationId: application.id.toString() } });
+    res.json(ok({ applicationId: Number(application.id) }));
   } catch (error) {
-    res.json({ code: 50001, message: '服务器错误', data: null });
+    console.error(error);
+    res.status(500).json(fail(50001, '服务器错误'));
   }
 });
 
-// GET /api/applications/mine - 查看我提交的申请
-router.get('/applications/mine', async (req, res) => {
+applicationsRouter.get('/applications/mine', requireAuth, async (req, res) => {
   try {
-    const userId = BigInt((req as any).user.id);
+    const userId = getAuthUserId(req);
     const applications = await prisma.projectApplication.findMany({
       where: { userId },
       include: { project: true },
       orderBy: { createdAt: 'desc' }
     });
-    // 省略 BigInt 转字符串细节，同上
-    res.json({ code: 0, message: 'ok', data: { list: applications } });
+    
+    const list = applications.map(a => ({
+      ...a,
+      id: Number(a.id),
+      projectId: Number(a.projectId),
+      userId: Number(a.userId),
+      project: { ...a.project, id: Number(a.project.id), ownerId: Number(a.project.ownerId) }
+    }));
+
+    res.json(ok({ list }));
   } catch (error) {
-    res.json({ code: 50001, message: '服务器错误', data: null });
+    console.error(error);
+    res.status(500).json(fail(50001, '服务器错误'));
   }
 });
 
-// GET /api/projects/:projectId/applications - 发布者查看申请
-router.get('/projects/:projectId/applications', async (req, res) => {
+applicationsRouter.get('/projects/:projectId/applications', requireAuth, async (req, res) => {
   try {
-    const userId = BigInt((req as any).user.id);
+    const userId = getAuthUserId(req);
     const projectId = BigInt(req.params.projectId);
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project || project.ownerId !== userId) {
-      return res.json({ code: 40301, message: '无权限查看此项目的申请', data: null });
+      res.status(403).json(fail(40301, '无权限查看此项目的申请'));
+      return;
     }
 
     const applications = await prisma.projectApplication.findMany({
@@ -62,16 +76,25 @@ router.get('/projects/:projectId/applications', async (req, res) => {
       include: { user: { select: { id: true, nickname: true, avatar: true } } },
       orderBy: { createdAt: 'desc' }
     });
-    res.json({ code: 0, message: 'ok', data: { list: applications } });
+
+    const list = applications.map(a => ({
+      ...a,
+      id: Number(a.id),
+      projectId: Number(a.projectId),
+      userId: Number(a.userId),
+      user: { ...a.user, id: Number(a.user.id) }
+    }));
+
+    res.json(ok({ list }));
   } catch (error) {
-    res.json({ code: 50001, message: '服务器错误', data: null });
+    console.error(error);
+    res.status(500).json(fail(50001, '服务器错误'));
   }
 });
 
-// PATCH /api/applications/:applicationId - 发布者审核申请
-router.patch('/applications/:applicationId', async (req, res) => {
+applicationsRouter.patch('/applications/:applicationId', requireAuth, async (req, res) => {
   try {
-    const userId = BigInt((req as any).user.id);
+    const userId = getAuthUserId(req);
     const applicationId = BigInt(req.params.applicationId);
     const { status } = req.body;
 
@@ -80,9 +103,18 @@ router.patch('/applications/:applicationId', async (req, res) => {
       include: { project: true }
     });
 
-    if (!application) return res.json({ code: 40401, message: '申请不存在', data: null });
-    if (application.project.ownerId !== userId) return res.json({ code: 40301, message: '无审核权限', data: null });
-    if (application.status !== 'pending') return res.json({ code: 40001, message: '已处理过该申请', data: null });
+    if (!application) {
+      res.status(404).json(fail(40401, '申请不存在'));
+      return;
+    }
+    if (application.project.ownerId !== userId) {
+      res.status(403).json(fail(40301, '无审核权限'));
+      return;
+    }
+    if (application.status !== 'pending') {
+      res.status(400).json(fail(40001, '已处理过该申请'));
+      return;
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.projectApplication.update({
@@ -106,11 +138,9 @@ router.patch('/applications/:applicationId', async (req, res) => {
       }
     });
 
-    res.json({ code: 0, message: `已成功${status === 'approved' ? '通过' : '拒绝'}`, data: null });
+    res.json(ok(null));
   } catch (error) {
     console.error(error);
-    res.json({ code: 50001, message: '服务器内部错误', data: null });
+    res.status(500).json(fail(50001, '服务器内部错误'));
   }
 });
-
-export default router;
