@@ -5,13 +5,27 @@ import { ok, fail } from '../utils/response.js';
 
 export const favoritesRouter = Router();
 
+function paramId(value: string | string[]): bigint | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+
 favoritesRouter.post('/:projectId', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const projectId = BigInt(req.params.projectId as string)
+    const projectId = paramId(req.params.projectId);
+    if (!projectId) {
+      res.status(400).json(fail(40001, '无效的项目 ID'));
+      return;
+    }
 
     const existing = await prisma.userFavorite.findUnique({
-      where: { userId_projectId: { userId, projectId } }
+      where: { userId_projectId: { userId, projectId } },
     });
 
     if (existing) {
@@ -20,7 +34,7 @@ favoritesRouter.post('/:projectId', requireAuth, async (req, res) => {
     }
 
     const favorite = await prisma.userFavorite.create({
-      data: { userId, projectId }
+      data: { userId, projectId },
     });
 
     res.json(ok({ id: Number(favorite.id) }));
@@ -33,14 +47,18 @@ favoritesRouter.post('/:projectId', requireAuth, async (req, res) => {
 favoritesRouter.delete('/:projectId', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const projectId = BigInt(req.params.projectId as string);
+    const projectId = paramId(req.params.projectId);
+    if (!projectId) {
+      res.status(400).json(fail(40001, '无效的项目 ID'));
+      return;
+    }
 
     await prisma.userFavorite.delete({
-      where: { userId_projectId: { userId, projectId } }
+      where: { userId_projectId: { userId, projectId } },
     });
 
     res.json(ok(null));
-  } catch (error) {
+  } catch {
     res.json(ok(null));
   }
 });
@@ -48,19 +66,23 @@ favoritesRouter.delete('/:projectId', requireAuth, async (req, res) => {
 favoritesRouter.get('/', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    
+
     const favorites = await prisma.userFavorite.findMany({
       where: { userId },
       include: { project: true },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
-    const list = favorites.map((f: any) => ({
+    const list = favorites.map((f) => ({
       ...f,
       id: Number(f.id),
       userId: Number(f.userId),
       projectId: Number(f.projectId),
-      project: { ...f.project, id: Number(f.project.id), ownerId: Number(f.project.ownerId) }
+      project: {
+        ...f.project,
+        id: Number(f.project.id),
+        ownerId: Number(f.project.ownerId),
+      },
     }));
 
     res.json(ok({ list }));

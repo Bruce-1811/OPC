@@ -10,6 +10,7 @@ export interface UserProfile {
   stats: {
     projectsJoined: number;
     applicationsPending: number;
+    applicationsToReview: number;
   };
 }
 

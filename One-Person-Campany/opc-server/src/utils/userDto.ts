@@ -3,6 +3,7 @@ import type { User, UserSkill } from '@prisma/client';
 export type UserStats = {
   projectsJoined: number;
   applicationsPending: number;
+  applicationsToReview: number;
 };
 
 export function toUserPublic(
@@ -20,6 +21,7 @@ export function toUserPublic(
     stats: {
       projectsJoined: stats.projectsJoined,
       applicationsPending: stats.applicationsPending,
+      applicationsToReview: stats.applicationsToReview,
     },
   };
 }
