@@ -1,16 +1,43 @@
-import { http } from './client';
+import { http, type ApiResponse } from './client';
 
-// 收藏项目
-export function addFavorite(projectId: number | string) {
-  return http.post(`/favorites/${projectId}`);
+export interface FavoriteProject {
+  id: number;
+  title: string;
+  cover: string | null;
+  tags: string | null;
+  status: string;
+  teamCurrent: number;
+  teamMax: number;
+  deadline: string | null;
+  viewCount: number;
+  ownerId: number;
 }
 
-// 取消收藏项目
-export function removeFavorite(projectId: number | string) {
-  return http.delete(`/favorites/${projectId}`);
+export interface FavoriteItem {
+  id: number;
+  userId: number;
+  projectId: number;
+  createdAt: string;
+  project: FavoriteProject;
 }
 
-// 获取我的收藏列表
-export function getMyFavorites() {
-  return http.get('/favorites');
+export async function addFavorite(projectId: number) {
+  const { data } = await http.post<ApiResponse<{ id: number }>>(
+    `/favorites/${projectId}`,
+  );
+  return data;
+}
+
+export async function removeFavorite(projectId: number) {
+  const { data } = await http.delete<ApiResponse<null>>(
+    `/favorites/${projectId}`,
+  );
+  return data;
+}
+
+export async function fetchFavorites() {
+  const { data } = await http.get<ApiResponse<{ list: FavoriteItem[] }>>(
+    '/favorites',
+  );
+  return data;
 }

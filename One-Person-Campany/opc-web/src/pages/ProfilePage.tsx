@@ -80,10 +80,29 @@ export default function ProfilePage() {
 
       <List header="数据概览">
         <List.Item extra={user.stats.projectsJoined}>参与项目</List.Item>
-        <List.Item extra={user.stats.applicationsPending}>待处理申请</List.Item>
+        <List.Item
+          extra={user.stats.applicationsPending}
+          onClick={() => navigate('/applications')}
+          arrow
+        >
+          我发出的申请
+        </List.Item>
+        <List.Item
+          extra={user.stats.applicationsToReview ?? 0}
+          onClick={() => navigate('/applications?tab=received')}
+          arrow
+        >
+          待我审核
+        </List.Item>
       </List>
 
       <List header="项目">
+        <List.Item onClick={() => navigate('/favorites')} arrow>
+          收藏项目
+        </List.Item>
+        <List.Item onClick={() => navigate('/applications')} arrow>
+          项目申请
+        </List.Item>
         <List.Item onClick={() => navigate('/drafts')} arrow>
           草稿箱
         </List.Item>

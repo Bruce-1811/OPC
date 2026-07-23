@@ -1,6 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, DotLoading, ErrorBlock, Tag, Toast } from 'antd-mobile';
+import {
+  Button,
+  DotLoading,
+  ErrorBlock,
+  Form,
+  Popup,
+  Selector,
+  Tag,
+  TextArea,
+  Toast,
+} from 'antd-mobile';
+import { fetchMe } from '../api/auth';
+import { submitApplication } from '../api/applications';
+import { addFavorite, removeFavorite } from '../api/favorites';
 import { fetchProjectDetail, type ProjectDetail } from '../api/projects';
 import { getApiErrorMessage } from '../api/errors';
 
@@ -23,8 +36,13 @@ export default function ProjectDetailPage() {
   const projectId = Number(id);
 
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [applyVisible, setApplyVisible] = useState(false);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string[]>([]);
 
   useEffect(() => {
     if (!Number.isFinite(projectId) || projectId < 1) {
@@ -36,17 +54,25 @@ export default function ProjectDetailPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetchProjectDetail(projectId);
+        const [detailRes, meRes] = await Promise.all([
+          fetchProjectDetail(projectId),
+          fetchMe(),
+        ]);
         if (cancelled) return;
-        if (res.code !== 0 || !res.data) {
-          setError(res.message || '加载失败');
+
+        if (meRes.code === 0 && meRes.data) {
+          setCurrentUserId(meRes.data.id);
+        }
+
+        if (detailRes.code !== 0 || !detailRes.data) {
+          setError(detailRes.message || '加载失败');
           return;
         }
-        if (res.data.isDraft) {
+        if (detailRes.data.isDraft) {
           navigate(`/publish/${projectId}`, { replace: true });
           return;
         }
-        setDetail(res.data);
+        setDetail(detailRes.data);
       } catch (err) {
         if (!cancelled) {
           setError(getApiErrorMessage(err, '网络错误'));
@@ -61,16 +87,117 @@ export default function ProjectDetailPage() {
     };
   }, [projectId, navigate]);
 
+  const isOwner = useMemo(
+    () =>
+      currentUserId != null &&
+      detail != null &&
+      detail.owner.id === currentUserId,
+    [currentUserId, detail],
+  );
+
+  const isMember = useMemo(
+    () =>
+      currentUserId != null &&
+      detail != null &&
+      detail.members.some((m) => m.userId === currentUserId),
+    [currentUserId, detail],
+  );
+
+  const roleOptions = useMemo(() => {
+    if (!detail) return [];
+    if (detail.roles.length === 0) {
+      return [{ label: '成员', value: '成员' }];
+    }
+    return detail.roles.map((role) => ({
+      label: role.name,
+      value: role.name,
+    }));
+  }, [detail]);
+
+  async function onToggleFavorite() {
+    if (!detail || favoriteLoading) return;
+    setFavoriteLoading(true);
+    try {
+      if (detail.isFavorite) {
+        const res = await removeFavorite(detail.id);
+        if (res.code !== 0) {
+          Toast.show({ icon: 'fail', content: res.message || '取消失败' });
+          return;
+        }
+        setDetail({ ...detail, isFavorite: false });
+        Toast.show({ content: '已取消收藏' });
+      } else {
+        const res = await addFavorite(detail.id);
+        if (res.code !== 0) {
+          Toast.show({ icon: 'fail', content: res.message || '收藏失败' });
+          return;
+        }
+        setDetail({ ...detail, isFavorite: true });
+        Toast.show({ icon: 'success', content: '已收藏' });
+      }
+    } catch (err) {
+      Toast.show({
+        icon: 'fail',
+        content: getApiErrorMessage(err, '操作失败'),
+      });
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }
+
   function onContact() {
     Toast.show({
-      content: '联系发布人（消息功能将在阶段三/四开放）',
+      content: '联系发布人（消息功能将在阶段 5 开放）',
     });
   }
 
-  function onApply() {
-    Toast.show({
-      content: '申请加入（阶段三开放，将对接申请接口）',
-    });
+  function openApply() {
+    if (!detail) return;
+    if (isOwner) {
+      navigate(`/projects/${detail.id}/applications`);
+      return;
+    }
+    if (isMember) {
+      Toast.show({ content: '您已是项目成员' });
+      return;
+    }
+    if (detail.hasApplied) {
+      Toast.show({ content: '您已提交过申请' });
+      return;
+    }
+    setSelectedRole(roleOptions[0] ? [roleOptions[0].value] : []);
+    setApplyVisible(true);
+  }
+
+  async function onSubmitApply(values: { message?: string }) {
+    if (!detail) return;
+    const roleName = selectedRole[0];
+    if (!roleName) {
+      Toast.show({ content: '请选择想担任的角色' });
+      return;
+    }
+
+    setApplyLoading(true);
+    try {
+      const res = await submitApplication(detail.id, {
+        roleName,
+        message: values.message?.trim() || undefined,
+      });
+      if (res.code !== 0) {
+        Toast.show({ icon: 'fail', content: res.message || '申请失败' });
+        return;
+      }
+      setDetail({ ...detail, hasApplied: true });
+      setApplyVisible(false);
+      Toast.show({ icon: 'success', content: '申请已提交' });
+    } catch (err) {
+      Toast.show({
+        icon: 'fail',
+        content: getApiErrorMessage(err, '申请失败'),
+      });
+    } finally {
+      setApplyLoading(false);
+    }
   }
 
   if (loading) {
@@ -92,12 +219,32 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const primaryLabel = isOwner
+    ? '审核申请'
+    : isMember
+      ? '已加入'
+      : detail.hasApplied
+        ? '已申请'
+        : '申请加入';
+
+  const primaryDisabled = !isOwner && (isMember || detail.hasApplied);
+
   return (
     <div className="project-detail-wrap">
       <div className="page project-detail-page">
-        <Button fill="none" size="small" onClick={() => navigate(-1)}>
-          ← 返回
-        </Button>
+        <div className="project-detail-top">
+          <Button fill="none" size="small" onClick={() => navigate(-1)}>
+            ← 返回
+          </Button>
+          <Button
+            fill="none"
+            size="small"
+            loading={favoriteLoading}
+            onClick={onToggleFavorite}
+          >
+            {detail.isFavorite ? '★ 已收藏' : '☆ 收藏'}
+          </Button>
+        </div>
 
         <div
           className="project-detail-cover"
@@ -171,13 +318,66 @@ export default function ProjectDetailPage() {
       </div>
 
       <div className="project-detail-footer">
-        <Button fill="outline" onClick={onContact}>
-          联系发布人
-        </Button>
-        <Button color="primary" onClick={onApply}>
-          申请加入
+        {!isOwner ? (
+          <Button fill="outline" onClick={onContact}>
+            联系发布人
+          </Button>
+        ) : (
+          <Button fill="outline" onClick={onToggleFavorite} loading={favoriteLoading}>
+            {detail.isFavorite ? '已收藏' : '收藏'}
+          </Button>
+        )}
+        <Button
+          color="primary"
+          disabled={primaryDisabled}
+          onClick={openApply}
+        >
+          {primaryLabel}
         </Button>
       </div>
+
+      <Popup
+        visible={applyVisible}
+        onMaskClick={() => setApplyVisible(false)}
+        bodyStyle={{ borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
+      >
+        <div className="apply-popup">
+          <h2>申请加入</h2>
+          <p className="apply-popup-hint">选择角色并简单介绍自己</p>
+          <Form
+            layout="vertical"
+            onFinish={onSubmitApply}
+            footer={
+              <Button
+                block
+                type="submit"
+                color="primary"
+                loading={applyLoading}
+              >
+                提交申请
+              </Button>
+            }
+          >
+            <Form.Item label="想担任的角色" required>
+              <Selector
+                options={roleOptions}
+                value={selectedRole}
+                onChange={(val) => {
+                  if (val.length) setSelectedRole(val as string[]);
+                }}
+              />
+            </Form.Item>
+            <Form.Item name="message" label="申请留言">
+              <TextArea
+                placeholder="例如：相关经验、可投入时间…"
+                rows={3}
+                maxLength={200}
+                showCount
+              />
+            </Form.Item>
+          </Form>
+        </div>
+      </Popup>
     </div>
   );
 }

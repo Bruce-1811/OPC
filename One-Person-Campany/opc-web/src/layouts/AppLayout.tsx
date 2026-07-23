@@ -45,6 +45,13 @@ export default function AppLayout() {
     ) {
       return '/publish';
     }
+    if (
+      location.pathname.startsWith('/favorites') ||
+      location.pathname.startsWith('/applications') ||
+      location.pathname.startsWith('/profile')
+    ) {
+      return '/profile';
+    }
     return (
       tabs.find((tab) => location.pathname.startsWith(tab.key))?.key ??
       '/discover'

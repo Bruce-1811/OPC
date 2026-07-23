@@ -384,3 +384,95 @@ body {
   border-top: 1px solid #eef2f7;
   box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
 }
+
+.project-detail-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.apply-popup {
+  padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.apply-popup h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.apply-popup-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.app-item-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.app-item-message {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.app-status {
+  font-size: 13px;
+  color: #b45309;
+  white-space: nowrap;
+}
+
+.app-status-ok {
+  color: #15803d;
+}
+
+.app-status-no {
+  color: #b91c1c;
+}
+
+.app-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.app-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+button.app-card {
+  cursor: pointer;
+}
+
+.app-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.app-card-head strong {
+  font-size: 16px;
+}
+
+.app-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}

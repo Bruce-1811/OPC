@@ -5,15 +5,28 @@ import { ok, fail } from '../utils/response.js';
 
 export const tasksRouter = Router();
 
-// POST /api/projects/:projectId/tasks - 在项目中创建任务
+function paramId(value: string | string[]): bigint | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+
 tasksRouter.post('/projects/:projectId/tasks', requireAuth, async (req, res) => {
   try {
-    const userId = getAuthUserId(req); 
-    const projectId = BigInt(req.params.projectId as string);
+    const userId = getAuthUserId(req);
+    const projectId = paramId(req.params.projectId);
+    if (!projectId) {
+      res.status(400).json(fail(40001, '无效的项目 ID'));
+      return;
+    }
     const { title, assigneeId, priority, dueDate } = req.body;
 
     const member = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId } }
+      where: { projectId_userId: { projectId, userId } },
     });
     if (!member) {
       res.status(403).json(fail(40301, '无权限，只有项目成员才能创建任务'));
@@ -27,8 +40,8 @@ tasksRouter.post('/projects/:projectId/tasks', requireAuth, async (req, res) => 
         assigneeId: assigneeId ? BigInt(assigneeId) : null,
         priority: priority || 'medium',
         dueDate: dueDate ? new Date(dueDate) : null,
-        status: 'todo' 
-      }
+        status: 'todo',
+      },
     });
 
     res.json(ok({ taskId: Number(task.id) }));
@@ -38,27 +51,30 @@ tasksRouter.post('/projects/:projectId/tasks', requireAuth, async (req, res) => 
   }
 });
 
-// GET /api/projects/:projectId/tasks - 获取某项目下的任务列表
 tasksRouter.get('/projects/:projectId/tasks', requireAuth, async (req, res) => {
   try {
-    const projectId = BigInt(req.params.projectId as string);
+    const projectId = paramId(req.params.projectId);
+    if (!projectId) {
+      res.status(400).json(fail(40001, '无效的项目 ID'));
+      return;
+    }
     const { status } = req.query;
 
-    const whereClause: any = { projectId };
-    if (status) whereClause.status = status as string;
+    const whereClause: { projectId: bigint; status?: string } = { projectId };
+    if (typeof status === 'string') whereClause.status = status;
 
     const tasks = await prisma.projectTask.findMany({
       where: whereClause,
       include: { assignee: { select: { id: true, nickname: true, avatar: true } } },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
-    const list = tasks.map((t: any) => ({
+    const list = tasks.map((t) => ({
       ...t,
       id: Number(t.id),
       projectId: Number(t.projectId),
       assigneeId: t.assigneeId ? Number(t.assigneeId) : null,
-      assignee: t.assignee ? { ...t.assignee, id: Number(t.assignee.id) } : null
+      assignee: t.assignee ? { ...t.assignee, id: Number(t.assignee.id) } : null,
     }));
 
     res.json(ok({ list }));
@@ -68,27 +84,28 @@ tasksRouter.get('/projects/:projectId/tasks', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/tasks/mine - 获取我的跨项目待办
 tasksRouter.get('/tasks/mine', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
     const { status } = req.query;
 
-    const whereClause: any = { assigneeId: userId };
-    if (status) whereClause.status = status as string;
+    const whereClause: { assigneeId: bigint; status?: string } = {
+      assigneeId: userId,
+    };
+    if (typeof status === 'string') whereClause.status = status;
 
     const tasks = await prisma.projectTask.findMany({
       where: whereClause,
       include: { project: { select: { id: true, title: true } } },
-      orderBy: { dueDate: 'asc' } 
+      orderBy: { dueDate: 'asc' },
     });
 
-    const list = tasks.map((t: any) => ({
+    const list = tasks.map((t) => ({
       ...t,
       id: Number(t.id),
       projectId: Number(t.projectId),
       assigneeId: t.assigneeId ? Number(t.assigneeId) : null,
-      project: { ...t.project, id: Number(t.project.id) }
+      project: { ...t.project, id: Number(t.project.id) },
     }));
 
     res.json(ok({ list }));
@@ -98,18 +115,21 @@ tasksRouter.get('/tasks/mine', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/tasks/:taskId - 更新任务状态
 tasksRouter.patch('/tasks/:taskId', requireAuth, async (req, res) => {
   try {
-    const taskId = BigInt(req.params.taskId as string);
+    const taskId = paramId(req.params.taskId);
+    if (!taskId) {
+      res.status(400).json(fail(40001, '无效的任务 ID'));
+      return;
+    }
     const { status, priority } = req.body;
 
     await prisma.projectTask.update({
       where: { id: taskId },
       data: {
         ...(status && { status }),
-        ...(priority && { priority })
-      }
+        ...(priority && { priority }),
+      },
     });
 
     res.json(ok(null));
