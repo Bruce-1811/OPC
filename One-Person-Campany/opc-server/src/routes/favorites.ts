@@ -8,7 +8,7 @@ export const favoritesRouter = Router();
 favoritesRouter.post('/:projectId', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const projectId = BigInt(req.params.projectId);
+    const projectId = BigInt(req.params.projectId as string)
 
     const existing = await prisma.userFavorite.findUnique({
       where: { userId_projectId: { userId, projectId } }
@@ -33,7 +33,7 @@ favoritesRouter.post('/:projectId', requireAuth, async (req, res) => {
 favoritesRouter.delete('/:projectId', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const projectId = BigInt(req.params.projectId);
+    const projectId = BigInt(req.params.projectId as string);
 
     await prisma.userFavorite.delete({
       where: { userId_projectId: { userId, projectId } }
@@ -55,7 +55,7 @@ favoritesRouter.get('/', requireAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    const list = favorites.map(f => ({
+    const list = favorites.map((f: any) => ({
       ...f,
       id: Number(f.id),
       userId: Number(f.userId),

@@ -53,7 +53,7 @@ projectsRouter.post('/', requireAuth, async (req, res) => {
     }
 
     if (!isDraft) {
-      const project = await prisma.$transaction(async (tx) => {
+      const project = await prisma.$transaction(async (tx: any) => {
         const created = await tx.project.create({ data });
         await publishProjectRecord(tx, created.id, ownerId, created.teamCurrent);
         return created;
@@ -91,7 +91,7 @@ projectsRouter.get('/drafts', requireAuth, async (req, res) => {
     const page = parsePositiveInt(req.query.page, 1, 10_000);
     const pageSize = parsePositiveInt(req.query.pageSize, 10, 50);
 
-    const where: Prisma.ProjectWhereInput = {
+    const where: any = {
       ownerId,
       isDraft: 1,
     };
@@ -152,15 +152,15 @@ projectsRouter.get('/', optionalAuth, async (req, res) => {
       const favorites = await prisma.userFavorite.findMany({
         where: {
           userId: viewerId,
-          projectId: { in: rows.map((r) => r.id) },
+          projectId: { in: rows.map((r: any) => r.id) },
         },
         select: { projectId: true },
       });
-      favoriteSet = new Set(favorites.map((f) => f.projectId.toString()));
+      favoriteSet = new Set(favorites.map((f: any) => f.projectId.toString()));
     }
 
     const list = await Promise.all(
-      rows.map(async (project) => {
+     rows.map(async (project: any) => {
         const extras: {
           isFavorite?: boolean;
           matchScore?: number;
@@ -232,7 +232,7 @@ projectsRouter.put('/:projectId', requireAuth, async (req, res) => {
       updateData.status = 'draft';
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.project.update({
         where: { id: projectId },
         data: updateData,
@@ -278,11 +278,11 @@ projectsRouter.get('/mine', requireAuth, async (req, res) => {
       orderBy: { updatedAt: 'desc' }
     });
 
-    const list = projects.map(p => ({
+    const list = projects.map((p: any) => ({
       ...p,
       id: Number(p.id),
       ownerId: Number(p.ownerId),
-      members: p.members.map(m => ({ ...m, id: Number(m.id), userId: Number(m.userId) }))
+      members: p.members.map((m: any) => ({ ...m, id: Number(m.id), userId: Number(m.userId) }))
     }));
 
     res.json(ok({ list }));

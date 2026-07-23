@@ -9,7 +9,7 @@ export const tasksRouter = Router();
 tasksRouter.post('/projects/:projectId/tasks', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req); 
-    const projectId = BigInt(req.params.projectId);
+    const projectId = BigInt(req.params.projectId as string);
     const { title, assigneeId, priority, dueDate } = req.body;
 
     const member = await prisma.projectMember.findUnique({
@@ -41,7 +41,7 @@ tasksRouter.post('/projects/:projectId/tasks', requireAuth, async (req, res) => 
 // GET /api/projects/:projectId/tasks - 获取某项目下的任务列表
 tasksRouter.get('/projects/:projectId/tasks', requireAuth, async (req, res) => {
   try {
-    const projectId = BigInt(req.params.projectId);
+    const projectId = BigInt(req.params.projectId as string);
     const { status } = req.query;
 
     const whereClause: any = { projectId };
@@ -53,7 +53,7 @@ tasksRouter.get('/projects/:projectId/tasks', requireAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    const list = tasks.map(t => ({
+    const list = tasks.map((t: any) => ({
       ...t,
       id: Number(t.id),
       projectId: Number(t.projectId),
@@ -83,7 +83,7 @@ tasksRouter.get('/tasks/mine', requireAuth, async (req, res) => {
       orderBy: { dueDate: 'asc' } 
     });
 
-    const list = tasks.map(t => ({
+    const list = tasks.map((t: any) => ({
       ...t,
       id: Number(t.id),
       projectId: Number(t.projectId),
@@ -101,7 +101,7 @@ tasksRouter.get('/tasks/mine', requireAuth, async (req, res) => {
 // PATCH /api/tasks/:taskId - 更新任务状态
 tasksRouter.patch('/tasks/:taskId', requireAuth, async (req, res) => {
   try {
-    const taskId = BigInt(req.params.taskId);
+    const taskId = BigInt(req.params.taskId as string);
     const { status, priority } = req.body;
 
     await prisma.projectTask.update({

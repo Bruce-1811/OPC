@@ -8,7 +8,7 @@ export const applicationsRouter = Router();
 applicationsRouter.post('/projects/:projectId/applications', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const projectId = BigInt(req.params.projectId);
+    const projectId = BigInt(req.params.projectId as string);
     const { roleName, message } = req.body;
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
@@ -45,7 +45,7 @@ applicationsRouter.get('/applications/mine', requireAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     
-    const list = applications.map(a => ({
+    const list = applications.map((a: any) => ({
       ...a,
       id: Number(a.id),
       projectId: Number(a.projectId),
@@ -63,7 +63,7 @@ applicationsRouter.get('/applications/mine', requireAuth, async (req, res) => {
 applicationsRouter.get('/projects/:projectId/applications', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const projectId = BigInt(req.params.projectId);
+    const projectId = BigInt(req.params.projectId as string);
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project || project.ownerId !== userId) {
@@ -77,7 +77,7 @@ applicationsRouter.get('/projects/:projectId/applications', requireAuth, async (
       orderBy: { createdAt: 'desc' }
     });
 
-    const list = applications.map(a => ({
+    const list = applications.map((a: any) => ({
       ...a,
       id: Number(a.id),
       projectId: Number(a.projectId),
@@ -95,7 +95,7 @@ applicationsRouter.get('/projects/:projectId/applications', requireAuth, async (
 applicationsRouter.patch('/applications/:applicationId', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const applicationId = BigInt(req.params.applicationId);
+    const applicationId = BigInt(req.params.applicationId as string);
     const { status } = req.body;
 
     const application = await prisma.projectApplication.findUnique({
@@ -116,7 +116,7 @@ applicationsRouter.patch('/applications/:applicationId', requireAuth, async (req
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.projectApplication.update({
         where: { id: applicationId },
         data: { status }
