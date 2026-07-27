@@ -257,6 +257,7 @@ projectsRouter.put('/:projectId', requireAuth, async (req, res) => {
 });
 
 // GET /api/projects/mine - 必须放在 /:projectId 前面
+// GET /api/projects/mine - 必须放在 /:projectId 前面
 projectsRouter.get('/mine', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
@@ -272,7 +273,8 @@ projectsRouter.get('/mine', requireAuth, async (req, res) => {
     const projects = await prisma.project.findMany({
       where: whereClause,
       include: {
-        tasks: { where: { status: 'todo' }, select: { title: true }, take: 1 },
+        tasks: true, // 升级点 1：查出所有任务，方便前端计算进度
+        owner: { select: { nickname: true, avatar: true } }, // 升级点 2：查出发布者信息
         members: { include: { user: { select: { avatar: true } } } }
       },
       orderBy: { updatedAt: 'desc' }
@@ -282,6 +284,13 @@ projectsRouter.get('/mine', requireAuth, async (req, res) => {
       ...p,
       id: Number(p.id),
       ownerId: Number(p.ownerId),
+      // 处理 tasks 里的 BigInt 防止 JSON 序列化报错
+      tasks: p.tasks.map((t: any) => ({
+        ...t,
+        id: Number(t.id),
+        projectId: Number(t.projectId),
+        assigneeId: t.assigneeId ? Number(t.assigneeId) : null,
+      })),
       members: p.members.map((m: any) => ({ ...m, id: Number(m.id), userId: Number(m.userId) }))
     }));
 
