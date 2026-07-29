@@ -52,6 +52,9 @@ export default function AppLayout() {
     ) {
       return '/profile';
     }
+    if (location.pathname.startsWith('/message')) {
+      return '/message';
+    }
     return (
       tabs.find((tab) => location.pathname.startsWith(tab.key))?.key ??
       '/discover'

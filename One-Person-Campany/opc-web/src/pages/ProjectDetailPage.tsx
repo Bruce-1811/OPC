@@ -13,6 +13,7 @@ import {
 } from 'antd-mobile';
 import { fetchMe } from '../api/auth';
 import { submitApplication } from '../api/applications';
+import { openConversation } from '../api/conversations';
 import { addFavorite, removeFavorite } from '../api/favorites';
 import { fetchProjectDetail, type ProjectDetail } from '../api/projects';
 import { getApiErrorMessage } from '../api/errors';
@@ -40,6 +41,7 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [contactLoading, setContactLoading] = useState(false);
   const [applyVisible, setApplyVisible] = useState(false);
   const [applyLoading, setApplyLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string[]>([]);
@@ -145,10 +147,35 @@ export default function ProjectDetailPage() {
     }
   }
 
-  function onContact() {
-    Toast.show({
-      content: '联系发布人（消息功能将在阶段 5 开放）',
-    });
+  async function onContact() {
+    if (!detail || contactLoading) return;
+
+    setContactLoading(true);
+    try {
+      const res = await openConversation({
+        type: 'project',
+        projectId: detail.id,
+        targetUserId: detail.owner.id,
+      });
+      if (res.code !== 0 || !res.data) {
+        Toast.show({
+          icon: 'fail',
+          content: res.message || '无法打开会话',
+        });
+        return;
+      }
+
+      navigate(`/message/${res.data.conversationId}`, {
+        state: { name: `${detail.title}小组` },
+      });
+    } catch (err) {
+      Toast.show({
+        icon: 'fail',
+        content: getApiErrorMessage(err, '无法打开会话'),
+      });
+    } finally {
+      setContactLoading(false);
+    }
   }
 
   function openApply() {
@@ -319,7 +346,7 @@ export default function ProjectDetailPage() {
 
       <div className="project-detail-footer">
         {!isOwner ? (
-          <Button fill="outline" onClick={onContact}>
+          <Button fill="outline" loading={contactLoading} onClick={onContact}>
             联系发布人
           </Button>
         ) : (

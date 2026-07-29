@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { getAuthUserId, requireAuth } from '../middleware/auth.js';
+import { ensureProjectConversation } from '../services/projectConversation.js';
 import { ok, fail } from '../utils/response.js';
 
 export const applicationsRouter = Router();
@@ -236,6 +237,24 @@ applicationsRouter.patch('/applications/:applicationId', requireAuth, async (req
             data: { teamCurrent: { increment: 1 } },
           });
         }
+
+        const members = await tx.projectMember.findMany({
+          where: { projectId: application.projectId },
+          select: { userId: true },
+        });
+        const memberIds = [
+          ...new Set([
+            application.project.ownerId.toString(),
+            ...members.map((m) => m.userId.toString()),
+          ]),
+        ].map((id) => BigInt(id));
+
+        await ensureProjectConversation(
+          tx,
+          application.projectId,
+          memberIds,
+          { name: `${application.project.title}小组` },
+        );
       }
     });
 
