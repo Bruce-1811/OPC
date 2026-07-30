@@ -1,283 +1,250 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Button,
-  Form,
-  Input,
-  Selector,
-  Space,
-  TextArea,
-  Toast,
-} from 'antd-mobile';
-import {
-  createProject,
-  fetchProjectDetail,
-  updateProject,
-  type ProjectDetail,
-} from '../api/projects';
-import { getApiErrorMessage } from '../api/errors';
-
-type FormValues = {
-  title: string;
-  idea: string;
-  tags: string;
-  teamMax: string;
-  durationWeeks: string;
-  deadline: string;
-  workMode: string[];
-  rolesText: string;
-  phasesText: string;
-};
-
-function textToRoles(text: string) {
-  return text
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((name) => ({ name, count: 1, filled: 0 }));
-}
-
-function textToPhases(text: string) {
-  return text
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((name) => ({ name, status: 'pending' }));
-}
-
-function rolesToText(roles: ProjectDetail['roles']) {
-  return roles.map((r) => r.name).join('\n');
-}
-
-function phasesToText(phases: ProjectDetail['phases']) {
-  return phases.map((p) => p.name).join('\n');
-}
-
-function buildPayload(values: FormValues, isDraft: boolean) {
-  const title = values.title?.trim();
-  const idea = values.idea?.trim() ?? '';
-  return {
-    title: title || undefined,
-    description: idea || undefined,
-    rawInput: idea || undefined,
-    tags: values.tags?.trim() || undefined,
-    teamMax: values.teamMax ? Number(values.teamMax) : undefined,
-    durationWeeks: values.durationWeeks
-      ? Number(values.durationWeeks)
-      : undefined,
-    deadline: values.deadline || undefined,
-    workMode: values.workMode?.[0] ?? 'remote',
-    roles: textToRoles(values.rolesText ?? ''),
-    phases: textToPhases(values.phasesText ?? ''),
-    isDraft,
-  };
-}
-
+import { useState } from 'react';
+import { NavBar, TextArea, Button, Space, Card, Tag, Toast } from 'antd-mobile';
+// 如果有封装好的 API，可以在此引入
+// import { generateDraft, publishProject } from '../api/projects';
+import React from 'react';
 export default function PublishPage() {
-  const navigate = useNavigate();
-  const { projectId: projectIdParam } = useParams();
-  const editId = projectIdParam ? Number(projectIdParam) : null;
-  const isEdit = editId != null && Number.isFinite(editId) && editId > 0;
+  // 控制当前所处步骤：1 = 输入想法， 2 = 草稿预览
+  const [step, setStep] = useState<1 | 2>(1);
+  const [ideaText, setIdeaText] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const [form] = Form.useForm<FormValues>();
-  const [loading, setLoading] = useState<'draft' | 'publish' | null>(null);
-  const [ready, setReady] = useState(!isEdit);
-
-  useEffect(() => {
-    if (!isEdit || !editId) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetchProjectDetail(editId);
-        if (cancelled) return;
-        if (res.code !== 0 || !res.data) {
-          Toast.show({ icon: 'fail', content: res.message || '草稿不存在' });
-          navigate('/drafts', { replace: true });
-          return;
-        }
-        if (!res.data.isDraft) {
-          Toast.show({ icon: 'fail', content: '已发布项目请从详情查看' });
-          navigate(`/projects/${editId}`, { replace: true });
-          return;
-        }
-        const d = res.data;
-        form.setFieldsValue({
-          title: d.title === '未命名草稿' ? '' : d.title,
-          idea: d.description ?? '',
-          tags: d.tags.join('，'),
-          teamMax: String(d.teamMax),
-          durationWeeks: d.durationWeeks ? String(d.durationWeeks) : '',
-          deadline: d.deadline ?? '',
-          workMode: [d.workMode ?? 'remote'],
-          rolesText: rolesToText(d.roles),
-          phasesText: phasesToText(d.phases),
-        });
-        setReady(true);
-      } catch (err) {
-        if (!cancelled) {
-          Toast.show({
-            icon: 'fail',
-            content: getApiErrorMessage(err, '加载失败'),
-          });
-          navigate('/drafts', { replace: true });
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [editId, form, isEdit, navigate]);
-
-  async function submit(isDraft: boolean) {
-    try {
-      const values = isDraft
-        ? form.getFieldsValue()
-        : await form.validateFields();
-      const title = values.title?.trim();
-      if (!isDraft && !title) {
-        Toast.show({ icon: 'fail', content: '发布请填写项目标题' });
-        return;
-      }
-
-      setLoading(isDraft ? 'draft' : 'publish');
-      const payload = buildPayload(values, isDraft);
-
-      const res =
-        isEdit && editId
-          ? await updateProject(editId, payload)
-          : await createProject(payload);
-
-      if (res.code !== 0 || !res.data) {
-        Toast.show({ icon: 'fail', content: res.message || '提交失败' });
-        return;
-      }
-
-      if (isDraft) {
-        Toast.show({ icon: 'success', content: '草稿已保存' });
-        if (!isEdit) {
-          const newId =
-            'projectId' in res.data && typeof res.data.projectId === 'number'
-              ? res.data.projectId
-              : res.data.id;
-          if (newId) navigate(`/publish/${newId}`, { replace: true });
-        }
-        return;
-      }
-
-      Toast.show({ icon: 'success', content: '发布成功' });
-      const id =
-        'projectId' in res.data && res.data.projectId
-          ? res.data.projectId
-          : res.data.id;
-      navigate(id ? `/projects/${id}` : '/discover', { replace: true });
-    } catch (err) {
-      if (err && typeof err === 'object' && 'errorFields' in err) {
-        Toast.show({ icon: 'fail', content: '请完善表单' });
-        return;
-      }
-      Toast.show({
-        icon: 'fail',
-        content: getApiErrorMessage(err, '网络错误，请稍后重试'),
-      });
-    } finally {
-      setLoading(null);
+  // 模拟调用 AI 生成草稿的动作
+  const handleGenerate = () => {
+    if (!ideaText.trim()) {
+      Toast.show('请先描述您的项目想法');
+      return;
     }
-  }
+    setIsGenerating(true);
+    // 模拟网络请求延迟
+    setTimeout(() => {
+      setIsGenerating(false);
+      setStep(2); // 生成完毕，进入步骤2：草稿页
+    }, 1500);
+  };
 
-  if (!ready) {
-    return <div className="page discover-loading">加载草稿…</div>;
-  }
+  // 模拟最终发布动作
+  const handlePublish = () => {
+    Toast.show({
+      icon: 'success',
+      content: '项目发布成功！',
+    });
+    // 发布成功后的逻辑，例如跳转回项目列表
+    // navigate('/projects');
+  };
 
   return (
-    <div className="page publish-page">
-      <div className="publish-top-row">
-        <h1>{isEdit ? '编辑草稿' : '发布项目'}</h1>
-        <Button fill="none" size="small" onClick={() => navigate('/drafts')}>
-          草稿箱
-        </Button>
-      </div>
-      <p className="publish-hint">
-        填写想法并发布；草稿不会出现在发现页，可从草稿箱继续编辑
-      </p>
+    <div style={{ backgroundColor: '#F4F6F9', minHeight: '100vh', paddingBottom: '32px' }}>
+      
+      {/* =============== 步骤 1：发布项目 (输入区) =============== */}
+      {step === 1 && (
+        <>
+          <NavBar 
+            right={<span style={{ fontSize: '14px', color: '#666' }}>草稿</span>}
+            onBack={() => Toast.show('返回')}
+            style={{ backgroundColor: '#fff' }}
+          >
+            发布项目
+          </NavBar>
 
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{
-          teamMax: '5',
-          workMode: ['remote'],
-        }}
-      >
-        <Form.Item name="title" label="项目标题">
-          <Input placeholder="如：智能校园助手（发布必填）" clearable />
-        </Form.Item>
+          <div style={{ padding: '16px' }}>
+            {/* 顶部插图与标语 (占位) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 8px' }}>
+              <div>
+                <div style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '8px' }}>把想法变成项目</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>简单描述，AI 帮你生成项目草稿</div>
+              </div>
+              <div style={{ fontSize: '48px' }}>🤖</div> {/* 替换为真实的 3D 机器人插图 */}
+            </div>
 
-        <Form.Item name="idea" label="项目想法 / 简介">
-          <TextArea
-            placeholder="描述你想做什么、需要什么人…"
-            rows={4}
-            showCount
-            maxLength={2000}
-          />
-        </Form.Item>
+            {/* 输入卡片 */}
+            <Card style={{ borderRadius: '16px', marginBottom: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
+                <span style={{ color: '#1677FF', marginRight: '8px' }}>📝</span> 描述项目想法
+              </div>
+              <div style={{ backgroundColor: '#F7F8FA', borderRadius: '12px', padding: '12px' }}>
+                <div style={{ color: '#ccc', fontSize: '24px', lineHeight: '1', marginBottom: '-8px' }}>“</div>
+                <TextArea
+                  placeholder="做一个 AI 学习规划助手，帮助大学生管理学习任务..."
+                  value={ideaText}
+                  onChange={val => setIdeaText(val)}
+                  autoSize={{ minRows: 4, maxRows: 6 }}
+                  maxLength={500}
+                  showCount
+                  style={{ backgroundColor: 'transparent', '--font-size': '15px' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                  <div style={{ fontSize: '12px', color: '#1677FF', display: 'flex', alignItems: 'center' }}>
+                    <span className="spinner" style={{ marginRight: '4px', display: ideaText ? 'inline-block' : 'none' }}>⚙️</span>
+                    {ideaText ? '正在整理...' : ''}
+                  </div>
+                  <div style={{ backgroundColor: '#fff', borderRadius: '50%', padding: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                    🎤
+                  </div>
+                </div>
+              </div>
+            </Card>
 
-        <Form.Item name="tags" label="标签">
-          <Input placeholder="逗号分隔，如：AI工具, 产品设计" clearable />
-        </Form.Item>
+            {/* 实时草稿预览卡片 */}
+            <Card style={{ borderRadius: '16px', marginBottom: '24px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                  <span style={{ color: '#1677FF', marginRight: '8px' }}>🌀</span> 实时草稿
+                </div>
+                <Tag color="success" fill="outline" style={{ borderRadius: '4px' }}>自动生成</Tag>
+              </div>
+              
+              <Space direction="vertical" style={{ width: '100%', '--gap': '12px' }}>
+                <div style={{ display: 'flex', backgroundColor: '#F7F8FA', padding: '10px 12px', borderRadius: '8px' }}>
+                  <span style={{ color: '#666', width: '40px', fontSize: '14px' }}>方向</span>
+                  <span style={{ color: '#333', fontSize: '14px', flex: 1 }}>{ideaText ? 'AI 学习规划工具' : '等待输入...'}</span>
+                </div>
+                <div style={{ display: 'flex', backgroundColor: '#F7F8FA', padding: '10px 12px', borderRadius: '8px' }}>
+                  <span style={{ color: '#666', width: '40px', fontSize: '14px' }}>用户</span>
+                  <span style={{ color: '#333', fontSize: '14px', flex: 1 }}>{ideaText ? '大学生' : '等待输入...'}</span>
+                </div>
+                
+                {/* 待补充提示 */}
+                <div style={{ border: '1px dashed #D9D9D9', borderRadius: '8px', padding: '12px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#1677FF', marginBottom: '12px' }}>
+                    <span>ℹ️ 待补充</span>
+                    <span>去补充 {'>'}</span>
+                  </div>
+                  <Space style={{ width: '100%', justifyContent: 'space-around', color: '#666', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>📅 项目周期</div>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>👥 招募角色</div>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>🧩 核心角色</div>
+                  </Space>
+                </div>
+              </Space>
+            </Card>
 
-        <Form.Item name="rolesText" label="招募角色（每行一个）">
-          <TextArea placeholder={'产品经理\n前端开发'} rows={3} />
-        </Form.Item>
+            {/* 底部操作区 */}
+            <Button 
+              block 
+              color="primary" 
+              size="large" 
+              loading={isGenerating}
+              onClick={handleGenerate}
+              style={{ borderRadius: '24px', fontWeight: 'bold', marginBottom: '16px', boxShadow: '0 4px 12px rgba(22, 119, 255, 0.3)' }}
+            >
+              生成草稿
+            </Button>
+            <div style={{ textAlign: 'center', color: '#1677FF', fontSize: '14px' }}>
+              保存草稿
+            </div>
+          </div>
+        </>
+      )}
 
-        <Form.Item name="phasesText" label="项目阶段（每行一个）">
-          <TextArea placeholder={'需求调研\n原型设计\n开发上线'} rows={3} />
-        </Form.Item>
+      {/* =============== 步骤 2：项目草稿 (预览与确认区) =============== */}
+      {step === 2 && (
+        <>
+          <NavBar 
+            right={<span style={{ fontSize: '14px', color: '#1677FF' }}>保存</span>}
+            onBack={() => setStep(1)}
+            style={{ backgroundColor: '#fff' }}
+          >
+            项目草稿
+          </NavBar>
 
-        <Form.Item name="workMode" label="协作方式">
-          <Selector
-            options={[
-              { label: '远程', value: 'remote' },
-              { label: '线下', value: 'onsite' },
-              { label: '混合', value: 'hybrid' },
-            ]}
-          />
-        </Form.Item>
+          <div style={{ padding: '16px' }}>
+            {/* 项目信息模块 */}
+            <Card style={{ borderRadius: '16px', marginBottom: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>项目信息</div>
+                <span style={{ fontSize: '14px', color: '#1677FF' }}>编辑</span>
+              </div>
+              
+              <Space direction="vertical" style={{ width: '100%', '--gap': '16px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>项目名称</div>
+                  <div style={{ fontSize: '15px', color: '#333' }}>AI学习规划工具</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>项目方向</div>
+                  <div style={{ fontSize: '15px', color: '#333' }}>效率工具 · AI应用</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>目标用户</div>
+                  <div style={{ fontSize: '15px', color: '#333' }}>大学生</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>项目简介</div>
+                  <div style={{ fontSize: '15px', color: '#333', lineHeight: '1.5' }}>帮助大学生拆解学习任务，生成学习计划</div>
+                </div>
+              </Space>
+            </Card>
 
-        <Form.Item name="teamMax" label="团队人数上限">
-          <Input type="number" placeholder="5" />
-        </Form.Item>
+            {/* 招募设置模块 */}
+            <Card style={{ borderRadius: '16px', marginBottom: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>招募设置</div>
+                <span style={{ fontSize: '14px', color: '#1677FF' }}>编辑角色</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                <div style={{ flex: '0 0 auto', backgroundColor: '#F6FFED', border: '1px solid #B7EB8F', borderRadius: '8px', padding: '12px', minWidth: '80px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>👤</div>
+                  <div style={{ fontSize: '12px', color: '#333', fontWeight: 'bold' }}>产品经理</div>
+                  <div style={{ fontSize: '10px', color: '#666' }}>1人</div>
+                </div>
+                <div style={{ flex: '0 0 auto', backgroundColor: '#E6F4FF', border: '1px solid #91CAFF', borderRadius: '8px', padding: '12px', minWidth: '80px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>💻</div>
+                  <div style={{ fontSize: '12px', color: '#333', fontWeight: 'bold' }}>前端开发</div>
+                  <div style={{ fontSize: '10px', color: '#666' }}>1人</div>
+                </div>
+                <div style={{ flex: '0 0 auto', backgroundColor: '#F9F0FF', border: '1px solid #D3ADF7', borderRadius: '8px', padding: '12px', minWidth: '80px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>🎨</div>
+                  <div style={{ fontSize: '12px', color: '#333', fontWeight: 'bold' }}>UI设计</div>
+                  <div style={{ fontSize: '10px', color: '#666' }}>1人</div>
+                </div>
+              </div>
+            </Card>
 
-        <Form.Item name="durationWeeks" label="预计周期（周）">
-          <Input type="number" placeholder="可选" />
-        </Form.Item>
+            {/* 其他条件模块 */}
+            <Card style={{ borderRadius: '16px', marginBottom: '24px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>其他条件</div>
+                <span style={{ fontSize: '14px', color: '#1677FF' }}>编辑</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', textAlign: 'center', color: '#333' }}>
+                <div>
+                  <div style={{ fontSize: '18px', color: '#1677FF', marginBottom: '4px' }}>📅</div>
+                  <div style={{ fontSize: '12px' }}>4周周期</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '18px', color: '#1677FF', marginBottom: '4px' }}>📶</div>
+                  <div style={{ fontSize: '12px' }}>远程协作</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '18px', color: '#1677FF', marginBottom: '4px' }}>⏳</div>
+                  <div style={{ fontSize: '12px' }}>6月15日截止</div>
+                </div>
+              </div>
+            </Card>
 
-        <Form.Item name="deadline" label="截止日期">
-          <Input type="date" />
-        </Form.Item>
-      </Form>
+            {/* AI 建议条与底部按钮 */}
+            <div style={{ backgroundColor: '#F0F7FF', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', color: '#1677FF', display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+              <span style={{ marginRight: '6px' }}>🤖</span> AI 建议：发布前可在确认招募角色以及薪资
+            </div>
 
-      <Space block direction="vertical" className="publish-actions">
-        <Button
-          block
-          color="primary"
-          loading={loading === 'publish'}
-          disabled={loading !== null}
-          onClick={() => submit(false)}
-        >
-          {isEdit ? '发布项目' : '发布项目'}
-        </Button>
-        <Button
-          block
-          fill="outline"
-          loading={loading === 'draft'}
-          disabled={loading !== null}
-          onClick={() => submit(true)}
-        >
-          保存草稿
-        </Button>
-      </Space>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <Button style={{ flex: 1, borderRadius: '24px', color: '#1677FF', borderColor: '#1677FF' }}>
+                重新生成
+              </Button>
+              <Button color="primary" style={{ flex: 1, borderRadius: '24px', boxShadow: '0 4px 12px rgba(22, 119, 255, 0.3)' }} onClick={handlePublish}>
+                发布项目
+              </Button>
+            </div>
+            
+            {/* 悬浮 AI 按钮 (问AI) */}
+            <div style={{ position: 'fixed', right: '16px', bottom: '100px', backgroundColor: '#fff', borderRadius: '50%', width: '56px', height: '56px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
+              <div style={{ fontSize: '24px' }}>🤖</div>
+              <div style={{ fontSize: '10px', color: '#1677FF', fontWeight: 'bold' }}>问AI</div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

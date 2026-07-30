@@ -117,3 +117,42 @@ export async function fetchDrafts(page = 1, pageSize = 20) {
   );
   return data;
 }
+
+// --- 以下为阶段四新增：任务与项目进度相关 ---
+
+// 任务的类型定义
+export interface ProjectTask {
+  id: number;
+  projectId: number;
+  title: string;
+  status: string;
+  priority: string;
+  assigneeId?: number | null;
+}
+
+// “我参与的项目”卡片数据类型
+export interface MyProjectItem {
+  id: number;
+  title: string;
+  status: string;
+  progress: number;
+  cover?: string;
+  ownerId: number;
+  teamCurrent: number;
+  teamMax: number;
+  owner: {
+    nickname: string;
+    avatar?: string;
+  };
+  tasks: ProjectTask[];
+}
+
+/**
+ * 获取我参与的项目列表
+ * @param status 可选，按项目状态过滤（如 'ongoing', 'done'）
+ */
+
+export async function fetchMyProjects(status?: string): Promise<ApiResponse<{ list: MyProjectItem[] }>> {
+  const url = status ? `/projects/mine?status=${status}` : '/projects/mine';
+  return http.get(url);
+}
