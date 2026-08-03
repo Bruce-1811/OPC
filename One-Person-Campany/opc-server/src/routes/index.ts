@@ -5,6 +5,7 @@ import { projectsRouter } from './projects.js';
 import { usersRouter } from './users.js';
 import { favoritesRouter } from './favorites.js';
 import { applicationsRouter } from './applications.js';
+import { conversationsRouter } from './conversations.js';
 import { tasksRouter } from './tasks.js';
 
 export const apiRouter = Router();
@@ -15,5 +16,6 @@ apiRouter.use('/users', usersRouter);
 apiRouter.use('/projects', projectsRouter);
 
 apiRouter.use('/favorites', favoritesRouter);
+apiRouter.use('/conversations', conversationsRouter);
 apiRouter.use('/', applicationsRouter);
 apiRouter.use('/', tasksRouter);
