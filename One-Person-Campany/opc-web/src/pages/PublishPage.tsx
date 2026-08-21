@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavBar, TextArea, Button, Space, Card, Tag, Toast } from 'antd-mobile';
 // 如果有封装好的 API，可以在此引入
 // import { generateDraft, publishProject } from '../api/projects';
-import React from 'react';
+
 export default function PublishPage() {
   // 控制当前所处步骤：1 = 输入想法， 2 = 草稿预览
   const [step, setStep] = useState<1 | 2>(1);
