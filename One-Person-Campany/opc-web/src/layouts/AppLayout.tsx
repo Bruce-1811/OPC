@@ -48,7 +48,8 @@ export default function AppLayout() {
     if (
       location.pathname.startsWith('/favorites') ||
       location.pathname.startsWith('/applications') ||
-      location.pathname.startsWith('/profile')
+      location.pathname.startsWith('/profile') ||
+      location.pathname.startsWith('/assistant')
     ) {
       return '/profile';
     }
@@ -61,6 +62,8 @@ export default function AppLayout() {
     );
   })();
 
+  const showAiFab = !location.pathname.startsWith('/assistant');
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -70,6 +73,16 @@ export default function AppLayout() {
       <main className="app-main">
         <Outlet />
       </main>
+      {showAiFab ? (
+        <button
+          type="button"
+          className="ai-fab"
+          aria-label="问培风"
+          onClick={() => navigate('/assistant')}
+        >
+          问 AI
+        </button>
+      ) : null}
       <TabBar activeKey={activeKey} onChange={(key) => navigate(key)}>
         {tabs.map((tab) => (
           <TabBar.Item key={tab.key} icon={tab.icon} title={tab.title} />
