@@ -11,6 +11,7 @@ import MyApplicationsPage from './pages/MyApplicationsPage';
 import PublishPage from './pages/PublishPage';
 import MessagePage from './pages/MessagePage';
 import ChatPage from './pages/ChatPage';
+import AssistantPage from './pages/AssistantPage';
 import ProfilePage from './pages/ProfilePage';
 import EditProfilePage from './pages/EditProfilePage';
 import LoginPage from './pages/LoginPage';
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/message" element={<MessagePage />} />
           <Route path="/message/:conversationId" element={<ChatPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/edit" element={<EditProfilePage />} />
         </Route>

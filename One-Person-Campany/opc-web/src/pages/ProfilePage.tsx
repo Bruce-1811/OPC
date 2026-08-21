@@ -106,6 +106,9 @@ export default function ProfilePage() {
         <List.Item onClick={() => navigate('/drafts')} arrow>
           草稿箱
         </List.Item>
+        <List.Item onClick={() => navigate('/assistant')} arrow>
+          问培风
+        </List.Item>
       </List>
 
       <div className="profile-actions">
