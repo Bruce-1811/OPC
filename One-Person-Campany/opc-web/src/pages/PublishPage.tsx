@@ -1,60 +1,52 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { NavBar, TextArea, Button, Space, Card, Tag, Toast } from 'antd-mobile';
-// 如果有封装好的 API，可以在此引入
-// import { generateDraft, publishProject } from '../api/projects';
 
 export default function PublishPage() {
-  // 控制当前所处步骤：1 = 输入想法， 2 = 草稿预览
+  const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2>(1);
   const [ideaText, setIdeaText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // 模拟调用 AI 生成草稿的动作
   const handleGenerate = () => {
     if (!ideaText.trim()) {
       Toast.show('请先描述您的项目想法');
       return;
     }
     setIsGenerating(true);
-    // 模拟网络请求延迟
     setTimeout(() => {
       setIsGenerating(false);
-      setStep(2); // 生成完毕，进入步骤2：草稿页
-    }, 1500);
+      setStep(2);
+    }, 800);
   };
 
-  // 模拟最终发布动作
   const handlePublish = () => {
     Toast.show({
       icon: 'success',
-      content: '项目发布成功！',
+      content: '草稿预览完成，可在项目页继续完善',
     });
-    // 发布成功后的逻辑，例如跳转回项目列表
-    // navigate('/projects');
+    navigate('/project');
   };
 
   return (
     <div style={{ backgroundColor: '#F4F6F9', minHeight: '100vh', paddingBottom: '32px' }}>
-      
-      {/* =============== 步骤 1：发布项目 (输入区) =============== */}
       {step === 1 && (
         <>
           <NavBar 
             right={<span style={{ fontSize: '14px', color: '#666' }}>草稿</span>}
-            onBack={() => Toast.show('返回')}
+            onBack={() => navigate(-1)}
             style={{ backgroundColor: '#fff' }}
           >
             发布项目
           </NavBar>
 
           <div style={{ padding: '16px' }}>
-            {/* 顶部插图与标语 (占位) */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 8px' }}>
               <div>
                 <div style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '8px' }}>把想法变成项目</div>
                 <div style={{ fontSize: '12px', color: '#666' }}>简单描述，AI 帮你生成项目草稿</div>
               </div>
-              <div style={{ fontSize: '48px' }}>🤖</div> {/* 替换为真实的 3D 机器人插图 */}
+              <div style={{ fontSize: '48px' }}>🤖</div>
             </div>
 
             {/* 输入卡片 */}
@@ -137,7 +129,6 @@ export default function PublishPage() {
         </>
       )}
 
-      {/* =============== 步骤 2：项目草稿 (预览与确认区) =============== */}
       {step === 2 && (
         <>
           <NavBar 

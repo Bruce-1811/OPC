@@ -118,9 +118,6 @@ export async function fetchDrafts(page = 1, pageSize = 20) {
   return data;
 }
 
-// --- 以下为阶段四新增：任务与项目进度相关 ---
-
-// 任务的类型定义
 export interface ProjectTask {
   id: number;
   projectId: number;
@@ -130,7 +127,6 @@ export interface ProjectTask {
   assigneeId?: number | null;
 }
 
-// “我参与的项目”卡片数据类型
 export interface MyProjectItem {
   id: number;
   title: string;

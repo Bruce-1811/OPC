@@ -256,8 +256,7 @@ projectsRouter.put('/:projectId', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/projects/mine - 必须放在 /:projectId 前面
-// GET /api/projects/mine - 必须放在 /:projectId 前面
+// 我参与的项目列表（须注册在 /:projectId 之前）
 projectsRouter.get('/mine', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
@@ -273,8 +272,8 @@ projectsRouter.get('/mine', requireAuth, async (req, res) => {
     const projects = await prisma.project.findMany({
       where: whereClause,
       include: {
-        tasks: true, // 升级点 1：查出所有任务，方便前端计算进度
-        owner: { select: { nickname: true, avatar: true } }, // 升级点 2：查出发布者信息
+        tasks: true,
+        owner: { select: { nickname: true, avatar: true } },
         members: { include: { user: { select: { avatar: true } } } }
       },
       orderBy: { updatedAt: 'desc' }

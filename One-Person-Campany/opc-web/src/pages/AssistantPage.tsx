@@ -101,7 +101,7 @@ function mockReply(content: string): {
 
   if (content.includes('今天要处理什么')) {
     reply =
-      '今天建议优先处理：\n1. 查看项目 Tab 里的待办\n2. 回复消息里的未读会话\n3. 处理待审核的加入申请\n\n（当前为前端 Mock，后端就绪后会基于真实数据生成）';
+      '今天建议优先处理：\n1. 查看项目 Tab 里的待办\n2. 回复消息里的未读会话\n3. 处理待审核的加入申请\n\n（当前为离线提示，接通服务后将基于真实数据生成）';
     suggestions = [
       { type: 'task', refId: 0, title: '去处理待办' },
       { type: 'message', refId: 0, title: '去看消息' },
@@ -109,18 +109,18 @@ function mockReply(content: string): {
     ];
   } else if (content.includes('找适合的项目') || content.includes('找项目')) {
     reply =
-      '可以从「发现」页按标签或关键词浏览项目；完善技能后，匹配会更准。\n\n（Mock）';
+      '可以从「发现」页按标签或关键词浏览项目；完善技能后，匹配会更准。';
     suggestions = [{ type: 'discover', refId: 0, title: '去发现页' }];
   } else if (content.includes('未读')) {
     reply =
-      '请到「消息」查看带未读角标的会话，优先回复最近活跃的项目群。\n\n（Mock）';
+      '请到「消息」查看带未读角标的会话，优先回复最近活跃的项目群。';
     suggestions = [{ type: 'message', refId: 0, title: '打开消息' }];
   } else if (content.includes('优化') || content.includes('介绍')) {
     reply =
-      '可以把草稿介绍发给我。建议写清：要解决什么问题、需要什么角色、预计周期。\n\n（Mock）';
+      '可以把草稿介绍发给我。建议写清：要解决什么问题、需要什么角色、预计周期。';
     suggestions = [{ type: 'publish', refId: 0, title: '去发布页' }];
   } else {
-    reply = `已收到：「${content}」。你可以点上方快捷能力，或继续追问。\n\n（Mock）`;
+    reply = `已收到：「${content}」。你可以点上方快捷能力，或继续追问。`;
   }
 
   return {
@@ -254,7 +254,7 @@ export default function AssistantPage() {
           Toast.show({
             content: getApiErrorMessage(
               err,
-              '后端未就绪，已使用本地 Mock 演示',
+              'AI 服务暂不可用，已切换为离线提示',
             ),
           });
         }
@@ -293,7 +293,7 @@ export default function AssistantPage() {
 
       {usingMock ? (
         <p className="assistant-mock-hint">
-          本地 Mock 演示中 · 后端 /ai 就绪后将自动切换真实接口
+          AI 服务暂不可用 · 当前为离线提示，恢复后将自动切回在线回复
         </p>
       ) : null}
 
