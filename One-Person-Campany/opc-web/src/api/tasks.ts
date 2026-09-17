@@ -12,19 +12,22 @@ export interface UpdateTaskParams {
   status?: string;
 }
 
-export async function createTask(
-  data: CreateTaskParams,
-): Promise<ApiResponse<unknown>> {
-  return http.post(`/projects/${data.projectId}/tasks`, {
-    title: data.title,
-    assigneeId: data.assigneeId,
-    priority: data.priority,
-  });
+export async function createTask(data: CreateTaskParams) {
+  const { data: body } = await http.post<ApiResponse<unknown>>(
+    `/projects/${data.projectId}/tasks`,
+    {
+      title: data.title,
+      assigneeId: data.assigneeId,
+      priority: data.priority,
+    },
+  );
+  return body;
 }
 
-export async function updateTask(
-  taskId: number,
-  data: UpdateTaskParams,
-): Promise<ApiResponse<unknown>> {
-  return http.patch(`/tasks/${taskId}`, data);
+export async function updateTask(taskId: number, data: UpdateTaskParams) {
+  const { data: body } = await http.patch<ApiResponse<unknown>>(
+    `/tasks/${taskId}`,
+    data,
+  );
+  return body;
 }

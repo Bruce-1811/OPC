@@ -1,39 +1,191 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { NavBar, TextArea, Button, Space, Card, Tag, Toast } from 'antd-mobile';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { NavBar, TextArea, Button, Space, Card, Tag, Toast, DotLoading } from 'antd-mobile';
+import {
+  createProject,
+  fetchProjectDetail,
+  updateProject,
+} from '../api/projects';
+import { getApiErrorMessage } from '../api/errors';
+
+function buildDraftFromIdea(idea: string) {
+  const text = idea.trim();
+  const title =
+    text.length > 24 ? `${text.slice(0, 24)}…` : text || '未命名项目';
+  return {
+    title,
+    description: text,
+    tags: '效率工具,AI应用',
+    workMode: 'remote' as const,
+    durationWeeks: 4,
+    teamMax: 4,
+    roles: [
+      { name: '产品经理', count: 1 },
+      { name: '前端开发', count: 1 },
+      { name: 'UI设计', count: 1 },
+    ],
+    rawInput: text,
+  };
+}
 
 export default function PublishPage() {
   const navigate = useNavigate();
+  const params = useParams();
+  const editingId = params.projectId ? Number(params.projectId) : NaN;
+  const isEditing = Number.isFinite(editingId) && editingId > 0;
+
   const [step, setStep] = useState<1 | 2>(1);
   const [ideaText, setIdeaText] = useState('');
+  const [title, setTitle] = useState('');
+  const [loadingDraft, setLoadingDraft] = useState(isEditing);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+
+  const draft = useMemo(() => {
+    const base = buildDraftFromIdea(ideaText);
+    if (title.trim()) {
+      return { ...base, title: title.trim() };
+    }
+    return base;
+  }, [ideaText, title]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    let cancelled = false;
+    (async () => {
+      setLoadingDraft(true);
+      try {
+        const res = await fetchProjectDetail(editingId);
+        if (cancelled) return;
+        if (res.code !== 0 || !res.data) {
+          Toast.show({ content: res.message || '草稿加载失败' });
+          navigate('/publish', { replace: true });
+          return;
+        }
+        const p = res.data;
+        setIdeaText(p.description || p.title || '');
+        setTitle(p.title || '');
+        setStep(2);
+      } catch (err) {
+        if (!cancelled) {
+          Toast.show({
+            content: getApiErrorMessage(err, '草稿加载失败'),
+          });
+          navigate('/publish', { replace: true });
+        }
+      } finally {
+        if (!cancelled) setLoadingDraft(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editingId, isEditing, navigate]);
 
   const handleGenerate = () => {
     if (!ideaText.trim()) {
-      Toast.show('请先描述您的项目想法');
+      Toast.show({ content: '请先描述您的项目想法' });
       return;
     }
     setIsGenerating(true);
+    setTitle('');
     setTimeout(() => {
       setIsGenerating(false);
       setStep(2);
-    }, 800);
+    }, 400);
   };
 
-  const handlePublish = () => {
-    Toast.show({
-      icon: 'success',
-      content: '草稿预览完成，可在项目页继续完善',
-    });
-    navigate('/project');
-  };
+  async function saveOrPublish(asDraft: boolean) {
+    if (!ideaText.trim() && !title.trim()) {
+      Toast.show({ content: '请先填写项目想法' });
+      return;
+    }
+
+    const payload = {
+      ...draft,
+      isDraft: asDraft,
+    };
+
+    if (asDraft) {
+      setSavingDraft(true);
+    } else {
+      setPublishing(true);
+    }
+
+    try {
+      const res = isEditing
+        ? await updateProject(editingId, payload)
+        : await createProject(payload);
+
+      if (res.code !== 0 || !res.data) {
+        Toast.show({
+          icon: 'fail',
+          content: res.message || (asDraft ? '保存失败' : '发布失败'),
+        });
+        return;
+      }
+
+      Toast.show({
+        icon: 'success',
+        content: asDraft ? '草稿已保存' : '项目发布成功',
+      });
+
+      if (asDraft) {
+        navigate('/drafts', { replace: true });
+        return;
+      }
+
+      const projectId =
+        'projectId' in res.data
+          ? Number((res.data as { projectId?: number }).projectId)
+          : res.data.id;
+      navigate(projectId ? `/projects/${projectId}` : '/discover', {
+        replace: true,
+      });
+    } catch (err) {
+      Toast.show({
+        icon: 'fail',
+        content: getApiErrorMessage(
+          err,
+          asDraft ? '保存失败，请稍后重试' : '发布失败，请稍后重试',
+        ),
+      });
+    } finally {
+      setSavingDraft(false);
+      setPublishing(false);
+    }
+  }
+
+  if (loadingDraft) {
+    return (
+      <div className="page" style={{ paddingTop: 80, textAlign: 'center' }}>
+        <DotLoading color="primary" />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ backgroundColor: '#F4F6F9', minHeight: '100vh', paddingBottom: '32px' }}>
+    <div
+      style={{
+        backgroundColor: '#F4F6F9',
+        minHeight: '100vh',
+        paddingBottom: '32px',
+      }}
+    >
       {step === 1 && (
         <>
-          <NavBar 
-            right={<span style={{ fontSize: '14px', color: '#666' }}>草稿</span>}
+          <NavBar
+            right={
+              <span
+                style={{ fontSize: '14px', color: '#1677FF' }}
+                onClick={() => navigate('/drafts')}
+              >
+                我的草稿
+              </span>
+            }
             onBack={() => navigate(-1)}
             style={{ backgroundColor: '#fff' }}
           >
@@ -41,197 +193,270 @@ export default function PublishPage() {
           </NavBar>
 
           <div style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 8px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px',
+                padding: '0 8px',
+              }}
+            >
               <div>
-                <div style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '8px' }}>把想法变成项目</div>
-                <div style={{ fontSize: '12px', color: '#666' }}>简单描述，AI 帮你生成项目草稿</div>
+                <div
+                  style={{
+                    fontSize: '22px',
+                    fontWeight: 'bold',
+                    marginBottom: '8px',
+                  }}
+                >
+                  把想法变成项目
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  描述想法后生成草稿，可保存或直接发布
+                </div>
               </div>
               <div style={{ fontSize: '48px' }}>🤖</div>
             </div>
 
-            {/* 输入卡片 */}
-            <Card style={{ borderRadius: '16px', marginBottom: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
-                <span style={{ color: '#1677FF', marginRight: '8px' }}>📝</span> 描述项目想法
+            <Card
+              style={{
+                borderRadius: '16px',
+                marginBottom: '16px',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  marginBottom: '12px',
+                }}
+              >
+                描述项目想法
               </div>
-              <div style={{ backgroundColor: '#F7F8FA', borderRadius: '12px', padding: '12px' }}>
-                <div style={{ color: '#ccc', fontSize: '24px', lineHeight: '1', marginBottom: '-8px' }}>“</div>
+              <div
+                style={{
+                  backgroundColor: '#F7F8FA',
+                  borderRadius: '12px',
+                  padding: '12px',
+                }}
+              >
                 <TextArea
                   placeholder="做一个 AI 学习规划助手，帮助大学生管理学习任务..."
                   value={ideaText}
-                  onChange={val => setIdeaText(val)}
+                  onChange={(val) => setIdeaText(val)}
                   autoSize={{ minRows: 4, maxRows: 6 }}
                   maxLength={500}
                   showCount
-                  style={{ backgroundColor: 'transparent', '--font-size': '15px' }}
+                  style={{
+                    backgroundColor: 'transparent',
+                    '--font-size': '15px',
+                  }}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                  <div style={{ fontSize: '12px', color: '#1677FF', display: 'flex', alignItems: 'center' }}>
-                    <span className="spinner" style={{ marginRight: '4px', display: ideaText ? 'inline-block' : 'none' }}>⚙️</span>
-                    {ideaText ? '正在整理...' : ''}
-                  </div>
-                  <div style={{ backgroundColor: '#fff', borderRadius: '50%', padding: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                    🎤
-                  </div>
-                </div>
               </div>
             </Card>
 
-            {/* 实时草稿预览卡片 */}
-            <Card style={{ borderRadius: '16px', marginBottom: '24px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-                  <span style={{ color: '#1677FF', marginRight: '8px' }}>🌀</span> 实时草稿
-                </div>
-                <Tag color="success" fill="outline" style={{ borderRadius: '4px' }}>自动生成</Tag>
+            <Card
+              style={{
+                borderRadius: '16px',
+                marginBottom: '24px',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '16px',
+                }}
+              >
+                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>实时预览</div>
+                <Tag color="primary" fill="outline">
+                  本地预览
+                </Tag>
               </div>
-              
               <Space direction="vertical" style={{ width: '100%', '--gap': '12px' }}>
-                <div style={{ display: 'flex', backgroundColor: '#F7F8FA', padding: '10px 12px', borderRadius: '8px' }}>
-                  <span style={{ color: '#666', width: '40px', fontSize: '14px' }}>方向</span>
-                  <span style={{ color: '#333', fontSize: '14px', flex: 1 }}>{ideaText ? 'AI 学习规划工具' : '等待输入...'}</span>
-                </div>
-                <div style={{ display: 'flex', backgroundColor: '#F7F8FA', padding: '10px 12px', borderRadius: '8px' }}>
-                  <span style={{ color: '#666', width: '40px', fontSize: '14px' }}>用户</span>
-                  <span style={{ color: '#333', fontSize: '14px', flex: 1 }}>{ideaText ? '大学生' : '等待输入...'}</span>
-                </div>
-                
-                {/* 待补充提示 */}
-                <div style={{ border: '1px dashed #D9D9D9', borderRadius: '8px', padding: '12px', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#1677FF', marginBottom: '12px' }}>
-                    <span>ℹ️ 待补充</span>
-                    <span>去补充 {'>'}</span>
-                  </div>
-                  <Space style={{ width: '100%', justifyContent: 'space-around', color: '#666', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>📅 项目周期</div>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>👥 招募角色</div>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>🧩 核心角色</div>
-                  </Space>
+                <div
+                  style={{
+                    backgroundColor: '#F7F8FA',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                  }}
+                >
+                  {ideaText.trim() ? draft.title : '等待输入...'}
                 </div>
               </Space>
             </Card>
 
-            {/* 底部操作区 */}
-            <Button 
-              block 
-              color="primary" 
-              size="large" 
+            <Button
+              block
+              color="primary"
+              size="large"
               loading={isGenerating}
               onClick={handleGenerate}
-              style={{ borderRadius: '24px', fontWeight: 'bold', marginBottom: '16px', boxShadow: '0 4px 12px rgba(22, 119, 255, 0.3)' }}
+              style={{ borderRadius: '24px', fontWeight: 'bold' }}
             >
-              生成草稿
+              下一步：确认草稿
             </Button>
-            <div style={{ textAlign: 'center', color: '#1677FF', fontSize: '14px' }}>
-              保存草稿
-            </div>
           </div>
         </>
       )}
 
       {step === 2 && (
         <>
-          <NavBar 
-            right={<span style={{ fontSize: '14px', color: '#1677FF' }}>保存</span>}
-            onBack={() => setStep(1)}
-            style={{ backgroundColor: '#fff' }}
-          >
-            项目草稿
+          <NavBar onBack={() => setStep(1)} style={{ backgroundColor: '#fff' }}>
+            {isEditing ? '编辑草稿' : '确认发布'}
           </NavBar>
 
           <div style={{ padding: '16px' }}>
-            {/* 项目信息模块 */}
-            <Card style={{ borderRadius: '16px', marginBottom: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>项目信息</div>
-                <span style={{ fontSize: '14px', color: '#1677FF' }}>编辑</span>
+            <Card
+              style={{
+                borderRadius: '16px',
+                marginBottom: '16px',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  marginBottom: '16px',
+                }}
+              >
+                项目信息
               </div>
-              
               <Space direction="vertical" style={{ width: '100%', '--gap': '16px' }}>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>项目名称</div>
-                  <div style={{ fontSize: '15px', color: '#333' }}>AI学习规划工具</div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#1677FF',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    项目名称
+                  </div>
+                  <TextArea
+                    value={draft.title}
+                    onChange={(val) => setTitle(val)}
+                    autoSize={{ minRows: 1, maxRows: 2 }}
+                    style={{
+                      backgroundColor: '#F7F8FA',
+                      borderRadius: '8px',
+                      padding: '8px',
+                    }}
+                  />
                 </div>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>项目方向</div>
-                  <div style={{ fontSize: '15px', color: '#333' }}>效率工具 · AI应用</div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#1677FF',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    项目简介
+                  </div>
+                  <div style={{ fontSize: '15px', color: '#333', lineHeight: 1.5 }}>
+                    {draft.description || '（无）'}
+                  </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>目标用户</div>
-                  <div style={{ fontSize: '15px', color: '#333' }}>大学生</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#1677FF', marginBottom: '4px' }}>项目简介</div>
-                  <div style={{ fontSize: '15px', color: '#333', lineHeight: '1.5' }}>帮助大学生拆解学习任务，生成学习计划</div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#1677FF',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    协作方式
+                  </div>
+                  <div style={{ fontSize: '15px', color: '#333' }}>
+                    远程 · {draft.durationWeeks} 周 · 最多 {draft.teamMax} 人
+                  </div>
                 </div>
               </Space>
             </Card>
 
-            {/* 招募设置模块 */}
-            <Card style={{ borderRadius: '16px', marginBottom: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>招募设置</div>
-                <span style={{ fontSize: '14px', color: '#1677FF' }}>编辑角色</span>
+            <Card
+              style={{
+                borderRadius: '16px',
+                marginBottom: '24px',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  marginBottom: '16px',
+                }}
+              >
+                招募角色
               </div>
-              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                <div style={{ flex: '0 0 auto', backgroundColor: '#F6FFED', border: '1px solid #B7EB8F', borderRadius: '8px', padding: '12px', minWidth: '80px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>👤</div>
-                  <div style={{ fontSize: '12px', color: '#333', fontWeight: 'bold' }}>产品经理</div>
-                  <div style={{ fontSize: '10px', color: '#666' }}>1人</div>
-                </div>
-                <div style={{ flex: '0 0 auto', backgroundColor: '#E6F4FF', border: '1px solid #91CAFF', borderRadius: '8px', padding: '12px', minWidth: '80px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>💻</div>
-                  <div style={{ fontSize: '12px', color: '#333', fontWeight: 'bold' }}>前端开发</div>
-                  <div style={{ fontSize: '10px', color: '#666' }}>1人</div>
-                </div>
-                <div style={{ flex: '0 0 auto', backgroundColor: '#F9F0FF', border: '1px solid #D3ADF7', borderRadius: '8px', padding: '12px', minWidth: '80px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '20px', marginBottom: '4px' }}>🎨</div>
-                  <div style={{ fontSize: '12px', color: '#333', fontWeight: 'bold' }}>UI设计</div>
-                  <div style={{ fontSize: '10px', color: '#666' }}>1人</div>
-                </div>
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
+                {draft.roles.map((role) => (
+                  <div
+                    key={role.name}
+                    style={{
+                      flex: '0 0 auto',
+                      backgroundColor: '#E6F4FF',
+                      border: '1px solid #91CAFF',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      minWidth: '80px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        color: '#333',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      {role.name}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#666' }}>
+                      {role.count}人
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card>
-
-            {/* 其他条件模块 */}
-            <Card style={{ borderRadius: '16px', marginBottom: '24px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>其他条件</div>
-                <span style={{ fontSize: '14px', color: '#1677FF' }}>编辑</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', textAlign: 'center', color: '#333' }}>
-                <div>
-                  <div style={{ fontSize: '18px', color: '#1677FF', marginBottom: '4px' }}>📅</div>
-                  <div style={{ fontSize: '12px' }}>4周周期</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '18px', color: '#1677FF', marginBottom: '4px' }}>📶</div>
-                  <div style={{ fontSize: '12px' }}>远程协作</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '18px', color: '#1677FF', marginBottom: '4px' }}>⏳</div>
-                  <div style={{ fontSize: '12px' }}>6月15日截止</div>
-                </div>
-              </div>
-            </Card>
-
-            {/* AI 建议条与底部按钮 */}
-            <div style={{ backgroundColor: '#F0F7FF', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', color: '#1677FF', display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-              <span style={{ marginRight: '6px' }}>🤖</span> AI 建议：发布前可在确认招募角色以及薪资
-            </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <Button style={{ flex: 1, borderRadius: '24px', color: '#1677FF', borderColor: '#1677FF' }}>
-                重新生成
+              <Button
+                loading={savingDraft}
+                style={{
+                  flex: 1,
+                  borderRadius: '24px',
+                  color: '#1677FF',
+                  borderColor: '#1677FF',
+                }}
+                onClick={() => saveOrPublish(true)}
+              >
+                保存草稿
               </Button>
-              <Button color="primary" style={{ flex: 1, borderRadius: '24px', boxShadow: '0 4px 12px rgba(22, 119, 255, 0.3)' }} onClick={handlePublish}>
+              <Button
+                color="primary"
+                loading={publishing}
+                style={{
+                  flex: 1,
+                  borderRadius: '24px',
+                  boxShadow: '0 4px 12px rgba(22, 119, 255, 0.3)',
+                }}
+                onClick={() => saveOrPublish(false)}
+              >
                 发布项目
               </Button>
-            </div>
-            
-            {/* 悬浮 AI 按钮 (问AI) */}
-            <div style={{ position: 'fixed', right: '16px', bottom: '100px', backgroundColor: '#fff', borderRadius: '50%', width: '56px', height: '56px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
-              <div style={{ fontSize: '24px' }}>🤖</div>
-              <div style={{ fontSize: '10px', color: '#1677FF', fontWeight: 'bold' }}>问AI</div>
             </div>
           </div>
         </>

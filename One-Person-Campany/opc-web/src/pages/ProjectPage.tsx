@@ -1,22 +1,63 @@
 import { useState, useEffect } from 'react';
-import { Tabs, ProgressBar, Checkbox, Toast, Avatar, Space, Tag } from 'antd-mobile';
+import { useNavigate } from 'react-router-dom';
+import {
+  Tabs,
+  ProgressBar,
+  Checkbox,
+  Toast,
+  Avatar,
+  Space,
+  Tag,
+} from 'antd-mobile';
 import { fetchMyProjects, type MyProjectItem } from '../api/projects';
 import { updateTask } from '../api/tasks';
+import { getApiErrorMessage } from '../api/errors';
+
+/** 前端 Tab → 后端 projects.status */
+const TAB_STATUS: Record<string, string | undefined> = {
+  ongoing: 'recruiting',
+  pending: 'recruiting',
+  completed: 'completed',
+  archived: 'archived',
+};
+
+function withProgress(item: MyProjectItem): MyProjectItem {
+  const tasks = item.tasks ?? [];
+  if (typeof item.progress === 'number' && !Number.isNaN(item.progress)) {
+    return item;
+  }
+  if (tasks.length === 0) {
+    return { ...item, progress: 0 };
+  }
+  const done = tasks.filter((t) => t.status === 'done').length;
+  return {
+    ...item,
+    progress: Math.round((done / tasks.length) * 100),
+  };
+}
 
 export default function ProjectPage() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<MyProjectItem[]>([]);
   const [activeTab, setActiveTab] = useState('ongoing');
   const [loading, setLoading] = useState(false);
 
-  const loadData = async (status: string) => {
+  const loadData = async (tab: string) => {
     setLoading(true);
     try {
+      const status = TAB_STATUS[tab];
       const res = await fetchMyProjects(status);
-      if (res.data && res.data.list) {
-        setProjects(res.data.list);
+      if (res.code !== 0 || !res.data) {
+        Toast.show({ content: res.message || '获取项目列表失败' });
+        setProjects([]);
+        return;
       }
-    } catch {
-      Toast.show({ content: '获取项目列表失败' });
+      setProjects((res.data.list ?? []).map(withProgress));
+    } catch (err) {
+      Toast.show({
+        content: getApiErrorMessage(err, '获取项目列表失败'),
+      });
+      setProjects([]);
     } finally {
       setLoading(false);
     }
@@ -29,11 +70,17 @@ export default function ProjectPage() {
   const handleTaskToggle = async (taskId: number, currentStatus: string) => {
     const newStatus = currentStatus === 'todo' ? 'done' : 'todo';
     try {
-      await updateTask(taskId, { status: newStatus });
+      const res = await updateTask(taskId, { status: newStatus });
+      if (res.code !== 0) {
+        Toast.show({ content: res.message || '更新任务失败' });
+        return;
+      }
       Toast.show({ content: '状态已更新', position: 'bottom' });
       loadData(activeTab);
-    } catch {
-      Toast.show({ content: '更新任务失败' });
+    } catch (err) {
+      Toast.show({
+        content: getApiErrorMessage(err, '更新任务失败'),
+      });
     }
   };
 
@@ -44,6 +91,13 @@ export default function ProjectPage() {
   const inProgressCount = projects.filter(
     (p) => p.progress > 0 && p.progress < 100,
   ).length;
+
+  const statusLabel =
+    activeTab === 'completed'
+      ? '已完成'
+      : activeTab === 'archived'
+        ? '已归档'
+        : '进行中';
 
   return (
     <div
@@ -64,10 +118,12 @@ export default function ProjectPage() {
         }}
       >
         <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 'bold' }}>项目</h2>
-        <Space style={{ fontSize: '20px', color: '#333' }}>
-          <span>🔔</span>
-          <span style={{ color: '#1677FF' }}>➕</span>
-        </Space>
+        <span
+          style={{ fontSize: '20px', color: '#1677FF', cursor: 'pointer' }}
+          onClick={() => navigate('/publish')}
+        >
+          ➕
+        </span>
       </div>
 
       <div style={{ backgroundColor: '#fff', paddingBottom: '8px' }}>
@@ -97,23 +153,41 @@ export default function ProjectPage() {
             }}
           >
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: '#1677FF', fontSize: '20px', fontWeight: 'bold' }}>
+              <div
+                style={{ color: '#1677FF', fontSize: '20px', fontWeight: 'bold' }}
+              >
                 {projects.length}
               </div>
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>项目</div>
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                项目
+              </div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: '#00B578', fontSize: '20px', fontWeight: 'bold' }}>
+              <div
+                style={{ color: '#00B578', fontSize: '20px', fontWeight: 'bold' }}
+              >
                 {todoCount}
               </div>
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>待办</div>
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                待办
+              </div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: '#FF8F1F', fontSize: '20px', fontWeight: 'bold' }}>
+              <div
+                style={{ color: '#FF8F1F', fontSize: '20px', fontWeight: 'bold' }}
+              >
                 {inProgressCount}
               </div>
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>推进中</div>
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                推进中
+              </div>
             </div>
+          </div>
+        )}
+
+        {loading && (
+          <div style={{ textAlign: 'center', color: '#999', marginTop: '24px' }}>
+            加载中...
           </div>
         )}
 
@@ -134,7 +208,10 @@ export default function ProjectPage() {
               boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
             }}
           >
-            <div style={{ display: 'flex', marginBottom: '12px' }}>
+            <div
+              style={{ display: 'flex', marginBottom: '12px', cursor: 'pointer' }}
+              onClick={() => navigate(`/projects/${project.id}`)}
+            >
               <div
                 style={{
                   width: '64px',
@@ -172,7 +249,7 @@ export default function ProjectPage() {
                     fill="outline"
                     style={{ borderRadius: '4px', padding: '0 4px' }}
                   >
-                    进行中
+                    {statusLabel}
                   </Tag>
                 </div>
                 <div
@@ -208,24 +285,9 @@ export default function ProjectPage() {
                     textOverflow: 'ellipsis',
                   }}
                 >
-                  当前发布者: {project.owner?.nickname}
+                  发布者: {project.owner?.nickname}
                 </div>
               </div>
-            </div>
-
-            <div
-              style={{
-                backgroundColor: '#F0F7FF',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                color: '#1677FF',
-                display: 'flex',
-                alignItems: 'center',
-                marginBottom: '16px',
-              }}
-            >
-              <span style={{ marginRight: '6px' }}>🤖</span> AI 建议：确认当前阶段需求
             </div>
 
             {project.tasks && project.tasks.length > 0 && (
@@ -237,7 +299,9 @@ export default function ProjectPage() {
                   marginBottom: '16px',
                 }}
               >
-                <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+                <div
+                  style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}
+                >
                   待处理任务
                 </div>
                 <Space direction="vertical" style={{ width: '100%' }}>
@@ -268,7 +332,9 @@ export default function ProjectPage() {
                 alignItems: 'center',
                 borderTop: '1px solid #F0F0F0',
                 paddingTop: '12px',
+                cursor: 'pointer',
               }}
+              onClick={() => navigate(`/projects/${project.id}`)}
             >
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <Avatar
@@ -277,16 +343,6 @@ export default function ProjectPage() {
                     '--size': '24px',
                     borderRadius: '50%',
                     border: '1px solid #fff',
-                  }}
-                />
-                <div
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    backgroundColor: '#CCC',
-                    border: '1px solid #fff',
-                    marginLeft: '-8px',
                   }}
                 />
                 <span

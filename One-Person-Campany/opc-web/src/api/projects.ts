@@ -143,12 +143,10 @@ export interface MyProjectItem {
   tasks: ProjectTask[];
 }
 
-/**
- * 获取我参与的项目列表
- * @param status 可选，按项目状态过滤（如 'ongoing', 'done'）
- */
-
-export async function fetchMyProjects(status?: string): Promise<ApiResponse<{ list: MyProjectItem[] }>> {
-  const url = status ? `/projects/mine?status=${status}` : '/projects/mine';
-  return http.get(url);
+export async function fetchMyProjects(status?: string) {
+  const { data } = await http.get<ApiResponse<{ list: MyProjectItem[] }>>(
+    '/projects/mine',
+    { params: status ? { status } : undefined },
+  );
+  return data;
 }
