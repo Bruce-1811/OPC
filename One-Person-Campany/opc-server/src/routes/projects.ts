@@ -260,13 +260,14 @@ projectsRouter.put('/:projectId', requireAuth, async (req, res) => {
 projectsRouter.get('/mine', requireAuth, async (req, res) => {
   try {
     const userId = getAuthUserId(req);
-    const { status } = req.query; 
+    const { status } = req.query;
 
-    const whereClause: any = {
-      members: { some: { userId } }
+    const whereClause: Prisma.ProjectWhereInput = {
+      members: { some: { userId } },
+      isDraft: 0,
     };
-    if (typeof status === 'string') {
-      whereClause.status = status;
+    if (typeof status === 'string' && status.trim()) {
+      whereClause.status = status.trim();
     }
 
     const projects = await prisma.project.findMany({
@@ -274,24 +275,40 @@ projectsRouter.get('/mine', requireAuth, async (req, res) => {
       include: {
         tasks: true,
         owner: { select: { nickname: true, avatar: true } },
-        members: { include: { user: { select: { avatar: true } } } }
+        members: { select: { id: true, userId: true } },
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { updatedAt: 'desc' },
     });
 
-    const list = projects.map((p: any) => ({
-      ...p,
-      id: Number(p.id),
-      ownerId: Number(p.ownerId),
-      // 处理 tasks 里的 BigInt 防止 JSON 序列化报错
-      tasks: p.tasks.map((t: any) => ({
-        ...t,
+    const list = projects.map((p) => {
+      const tasks = p.tasks.map((t) => ({
         id: Number(t.id),
         projectId: Number(t.projectId),
-        assigneeId: t.assigneeId ? Number(t.assigneeId) : null,
-      })),
-      members: p.members.map((m: any) => ({ ...m, id: Number(m.id), userId: Number(m.userId) }))
-    }));
+        title: t.title,
+        status: t.status,
+        priority: t.priority,
+        assigneeId: t.assigneeId != null ? Number(t.assigneeId) : null,
+      }));
+      const doneCount = tasks.filter((t) => t.status === 'done').length;
+      const progress =
+        tasks.length === 0 ? 0 : Math.round((doneCount / tasks.length) * 100);
+
+      return {
+        id: Number(p.id),
+        title: p.title,
+        status: p.status,
+        progress,
+        cover: p.cover,
+        ownerId: Number(p.ownerId),
+        teamCurrent: p.teamCurrent,
+        teamMax: p.teamMax,
+        owner: {
+          nickname: p.owner.nickname,
+          avatar: p.owner.avatar,
+        },
+        tasks,
+      };
+    });
 
     res.json(ok({ list }));
   } catch (error) {
